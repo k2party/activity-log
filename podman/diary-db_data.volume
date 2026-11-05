@@ -3,4 +3,4 @@
 Description=行動記録メモ DBボリューム
 
 [Volume]
-VolumeName=dialy-db_data
+VolumeName=diary-db_data

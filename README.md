@@ -60,23 +60,23 @@ docker compose up -d --build
 
 | ファイル | 内容 |
 | --- | --- |
-| `podman/dialy.pod` | Pod `dialy`。`127.0.0.1:8000` のみに公開 |
-| `podman/dialy-app.container` | アプリ本体（イメージ `localhost/activity-log-app:latest`、非 root・ヘルスチェック・自動再起動） |
-| `podman/dialy-db_data.volume` | DB 永続化用ボリューム `dialy-db_data`（コンテナ内 `/data`） |
+| `podman/diary.pod` | Pod `diary`。`127.0.0.1:8000` のみに公開 |
+| `podman/diary-app.container` | アプリ本体（イメージ `localhost/activity-log-app:latest`、非 root・ヘルスチェック・自動再起動） |
+| `podman/diary-db_data.volume` | DB 永続化用ボリューム `diary-db_data`（コンテナ内 `/data`） |
 
 rootless の場合:
 
 ```bash
 podman build -t localhost/activity-log-app:latest .
 mkdir -p ~/.config/containers/systemd
-cp podman/dialy.pod podman/dialy-app.container podman/dialy-db_data.volume ~/.config/containers/systemd/
+cp podman/diary.pod podman/diary-app.container podman/diary-db_data.volume ~/.config/containers/systemd/
 systemctl --user daemon-reload
-systemctl --user start dialy-pod.service
+systemctl --user start diary-pod.service
 loginctl enable-linger "$USER"   # ログアウト後も動かし続ける場合
 ```
 
 rootful の場合は `/etc/containers/systemd/` に配置し、`systemctl` を `--user` なしで実行します。
-イメージを更新したときは再ビルド後に `systemctl --user restart dialy-pod.service` を実行してください。
+イメージを更新したときは再ビルド後に `systemctl --user restart diary-pod.service` を実行してください。
 
 ## 初回ログイン
 

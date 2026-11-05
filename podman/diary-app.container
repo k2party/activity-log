@@ -4,11 +4,11 @@
 Description=行動記録メモ アプリ
 
 [Container]
-ContainerName=dialy-app
+ContainerName=diary-app
 Image=localhost/activity-log-app:latest
-Pod=dialy.pod
+Pod=diary.pod
 # SQLiteファイルを永続化（/data/activity_log.db）
-Volume=dialy-db_data.volume:/data
+Volume=diary-db_data.volume:/data
 # 非rootユーザー（Dockerfile の USER app, UID 10001）で実行
 User=10001
 # podman build（OCI形式）では Dockerfile の HEALTHCHECK が引き継がれないため、ここで定義する
