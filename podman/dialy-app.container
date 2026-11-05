@@ -1,0 +1,22 @@
+# 行動記録メモ アプリ（Podman Quadlet）
+# 事前にイメージをビルドしておく:  podman build -t localhost/activity-log-app:latest .
+[Unit]
+Description=行動記録メモ アプリ
+
+[Container]
+ContainerName=dialy-app
+Image=localhost/activity-log-app:latest
+Pod=dialy.pod
+# SQLiteファイルを永続化（/data/activity_log.db）
+Volume=dialy-db_data.volume:/data
+# 非rootユーザー（Dockerfile の USER app, UID 10001）で実行
+User=10001
+# podman build（OCI形式）では Dockerfile の HEALTHCHECK が引き継がれないため、ここで定義する
+HealthCmd=python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status == 200 else 1)"
+HealthInterval=30s
+HealthTimeout=3s
+HealthStartPeriod=5s
+HealthRetries=3
+
+[Service]
+Restart=always

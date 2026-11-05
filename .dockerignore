@@ -1,7 +1,7 @@
 *
-!server.py
-!auth.py
-!pdf_report.py
-!index.html
-!login.html
-!users.html
+!app/server.py
+!app/auth.py
+!app/pdf_report.py
+!app/index.html
+!app/login.html
+!app/users.html

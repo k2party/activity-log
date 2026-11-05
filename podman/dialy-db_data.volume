@@ -1,0 +1,6 @@
+# 行動記録メモ DB用ボリューム（Podman Quadlet）
+[Unit]
+Description=行動記録メモ DBボリューム
+
+[Volume]
+VolumeName=dialy-db_data

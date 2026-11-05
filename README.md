@@ -28,9 +28,11 @@
 ### ローカルで直接起動
 
 ```bash
-python3 server.py
+python3 app/server.py
 # → http://127.0.0.1:8000/
 ```
+
+DB は既定で `data/activity_log.db` に作成されます（`data/` の中身は git 管理外）。
 
 オプション（環境変数でも指定可能。コマンドライン引数が優先）:
 
@@ -38,7 +40,7 @@ python3 server.py
 | --- | --- | --- | --- |
 | `--host` | `HOST` | `127.0.0.1` | 待ち受けアドレス |
 | `--port` | `PORT` | `8000` | 待ち受けポート |
-| `--db` | `DB_PATH` | `server.py` と同じフォルダの `activity_log.db` | SQLite DB ファイル（無ければ作成） |
+| `--db` | `DB_PATH` | `data/activity_log.db` | SQLite DB ファイル（無ければ作成） |
 | — | `TRUST_PROXY=1` | 無効 | リバースプロキシ配下で `X-Forwarded-For` / `X-Forwarded-Proto` を信頼する |
 | — | `COOKIE_SECURE=1` | 無効 | ログイン Cookie に常に `Secure` 属性を付ける（HTTPS 運用時） |
 
@@ -51,6 +53,30 @@ docker compose up -d --build
 - `127.0.0.1:8000` のみに公開されます（ホスト側の nginx 等のリバースプロキシから接続する想定）。ポートは `APP_PORT` で変更できます。
 - DB は名前付きボリューム `db-data`（コンテナ内 `/data/activity_log.db`）に永続化されます。
 - コンテナは非 root ユーザー（UID 10001）で動作し、`/healthz` でヘルスチェックを行います。
+
+### Podman（Quadlet）で起動
+
+`podman/` に systemd 用の Quadlet 定義があります。
+
+| ファイル | 内容 |
+| --- | --- |
+| `podman/dialy.pod` | Pod `dialy`。`127.0.0.1:8000` のみに公開 |
+| `podman/dialy-app.container` | アプリ本体（イメージ `localhost/activity-log-app:latest`、非 root・ヘルスチェック・自動再起動） |
+| `podman/dialy-db_data.volume` | DB 永続化用ボリューム `dialy-db_data`（コンテナ内 `/data`） |
+
+rootless の場合:
+
+```bash
+podman build -t localhost/activity-log-app:latest .
+mkdir -p ~/.config/containers/systemd
+cp podman/dialy.pod podman/dialy-app.container podman/dialy-db_data.volume ~/.config/containers/systemd/
+systemctl --user daemon-reload
+systemctl --user start dialy-pod.service
+loginctl enable-linger "$USER"   # ログアウト後も動かし続ける場合
+```
+
+rootful の場合は `/etc/containers/systemd/` に配置し、`systemctl` を `--user` なしで実行します。
+イメージを更新したときは再ビルド後に `systemctl --user restart dialy-pod.service` を実行してください。
 
 ## 初回ログイン
 
@@ -108,13 +134,17 @@ Acrobat / Chrome / Edge / macOS プレビューなど、閲覧側のフォント
 ## ファイル構成
 
 ```
-server.py       HTTP サーバー・API・DB スキーマ／マイグレーション
-auth.py         パスワードハッシュ・セッション・ログイン試行制限
-pdf_report.py   週間帳票 PDF の生成
-index.html      行動記録画面
-login.html      ログイン画面
-users.html      ユーザ管理画面
-Dockerfile, compose.yaml
+app/                      アプリ本体
+  server.py               HTTP サーバー・API・DB スキーマ／マイグレーション
+  auth.py                 パスワードハッシュ・セッション・ログイン試行制限
+  pdf_report.py           週間帳票 PDF の生成
+  index.html              行動記録画面
+  login.html              ログイン画面
+  users.html              ユーザ管理画面
+data/                     ローカル実行用の DB 置き場（中身は git 管理外）
+podman/                   Podman Quadlet 定義（.pod / .container / .volume）
+Dockerfile                コンテナイメージ（app/ の中身を /app にコピー）
+compose.yaml              Docker Compose 定義
 ```
 
 DB スキーマは `PRAGMA user_version` で管理され、起動時に自動でマイグレーションされます。

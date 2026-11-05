@@ -1,8 +1,8 @@
 """行動記録メモ サーバー（Python標準ライブラリのみ / SQLite保存）
 
-起動:  python3 server.py [--db DBファイルのパス] [--host 127.0.0.1] [--port 8000]
-  --db 省略時は server.py と同じフォルダの activity_log.db（環境変数 DB_PATH があればそれ）
-  例:  python3 server.py --db /var/lib/activity-log/activity_log.db
+起動:  python3 app/server.py [--db DBファイルのパス] [--host 127.0.0.1] [--port 8000]
+  --db 省略時はプロジェクト直下の data/activity_log.db（環境変数 DB_PATH があればそれ）
+  例:  python3 app/server.py --db /var/lib/activity-log/activity_log.db
   Docker では --db /data/activity_log.db で起動する（Dockerfile の CMD）
 
 環境変数でも設定可能（コマンドライン引数が優先）:
@@ -26,7 +26,7 @@ import pdf_report
 
 BASE_DIR = Path(__file__).resolve().parent
 PAGES = {name: BASE_DIR / f"{name}.html" for name in ("index", "login", "users")}
-DB_PATH = Path(os.environ.get("DB_PATH") or BASE_DIR / "activity_log.db")
+DB_PATH = Path(os.environ.get("DB_PATH") or BASE_DIR.parent / "data" / "activity_log.db")
 TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE") == "1"
 COOKIE_NAME = "alog_session"

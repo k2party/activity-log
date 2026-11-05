@@ -1,0 +1,12 @@
+# 行動記録メモ Pod（Podman Quadlet）
+# 配置先: ~/.config/containers/systemd/（rootless）または /etc/containers/systemd/（rootful）
+[Unit]
+Description=行動記録メモ Pod
+
+[Pod]
+PodName=dialy
+# ホストOSのnginx（リバースプロキシ）から接続する。外部からの直接アクセスを防ぐため 127.0.0.1 のみに公開
+PublishPort=127.0.0.1:8000:8000
+
+[Install]
+WantedBy=default.target
