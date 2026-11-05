@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行動記録メモ</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #222; --sub: #777;
+    --accent: #2f6fde; --danger: #d94848; --border: #e2e4e8;
+    --c-sleep: #6b5bd2; --c-meal: #e08a1e; --c-medicine: #d14f8a; --c-out: #1f9d6b; --c-other: #888;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  header.top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 16px; }
+  header.top .spacer { flex: 1; }
+  header.top .user { color: var(--sub); font-size: .9rem; }
+  header.top button, header.top a.btn { padding: 4px 10px; font-size: .85rem; }
+  a.btn { display: inline-block; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: inherit; text-decoration: none; }
+  a.btn:hover { background: #f0f2f5; }
+  .notice { background: #fff6e5; color: #9a6500; border: 1px solid #f2d9a6; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+  .notice button { margin-left: 8px; padding: 2px 10px; font-size: .85rem; }
+  dialog { border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: min(420px, 92vw); }
+  dialog::backdrop { background: rgba(0, 0, 0, .3); }
+  dialog h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  dialog form { grid-template-columns: auto 1fr; }
+  dialog .dlg-error { grid-column: 1 / -1; color: var(--danger); font-size: .9rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px; margin-bottom: 16px;
+  }
+  form { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; align-items: center; }
+  label { font-size: .9rem; color: var(--sub); }
+  input, button, select { font: inherit; }
+  input[type=text], input[type=password], input[type=date], select {
+    padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; width: 100%; background: #fff;
+  }
+  input.time-input { font-variant-numeric: tabular-nums; }
+  input:invalid { border-color: var(--danger); }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input { flex: 1; }
+  .hint { font-size: .8rem; color: var(--sub); white-space: nowrap; }
+  button {
+    padding: 8px 14px; border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; cursor: pointer; white-space: nowrap;
+  }
+  button:hover { background: #f0f2f5; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary:hover { filter: brightness(1.08); }
+  button.danger { color: var(--danger); }
+  .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+
+  /* 行動パターン */
+  .patterns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 12px; }
+  .patterns button {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 10px 4px; font-size: 1.4rem; border-width: 2px;
+  }
+  .patterns button span { font-size: .9rem; }
+  .patterns button.active { border-color: var(--accent); background: #eef3fd; }
+  .status { background: #f1effc; color: var(--c-sleep); border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; font-size: .9rem; }
+  .status.warn { background: #fff6e5; color: #9a6500; }
+  .chips { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+  .chips button { padding: 3px 12px; font-size: .85rem; border-radius: 14px; }
+  .chips button.active { background: var(--chip-color, var(--accent)); border-color: var(--chip-color, var(--accent)); color: #fff; }
+
+  .nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .nav input[type=date] { width: auto; }
+  .nav .spacer { flex: 1; }
+  .tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .tabs button { border: 0; border-radius: 0; }
+  .tabs button.active { background: var(--accent); color: #fff; }
+  .presets button { padding: 4px 10px; font-size: .85rem; }
+
+  .day { margin-bottom: 20px; }
+  .day-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    border-bottom: 2px solid var(--border); padding: 4px 2px; font-weight: bold;
+  }
+  .day-head .total { font-weight: normal; color: var(--sub); font-size: .9rem; }
+  .day-head .sun { color: #d94848; } .day-head .sat { color: #2f6fde; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  th { font-size: .8rem; color: var(--sub); font-weight: normal; }
+  td.time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  td.dur { white-space: nowrap; color: var(--sub); font-size: .9rem; }
+  td.ops { white-space: nowrap; text-align: right; }
+  td.ops button { padding: 4px 8px; font-size: .85rem; }
+  td.text { word-break: break-word; }
+  tr.cont td { color: var(--sub); background: #fafafc; font-size: .9rem; }
+  .badge {
+    display: inline-block; font-size: .75rem; padding: 1px 8px; border-radius: 10px;
+    color: #fff; margin-right: 6px; vertical-align: 1px;
+  }
+  .badge.sleep { background: var(--c-sleep); } .badge.meal { background: var(--c-meal); } .badge.medicine { background: var(--c-medicine); } .badge.out { background: var(--c-out); } .badge.other { background: var(--c-other); }
+  .muted { color: var(--sub); }
+  tr.editing input, tr.editing select { padding: 4px 6px; }
+  tr.editing input.time-input { width: 5.5em; }
+  tr.editing input[type=date], tr.editing select { width: auto; }
+  tr.editing .edit-grid { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .day-note { margin-top: 8px; padding: 8px 10px; background: #fafafc; border: 1px solid var(--border); border-radius: 8px; }
+  .day-note .note-head { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--sub); margin-bottom: 4px; }
+  .day-note .note-head .spacer { flex: 1; }
+  .day-note .note-head button { padding: 2px 10px; font-size: .8rem; }
+  .day-note .note-text { white-space: pre-wrap; word-break: break-word; }
+  .day-note textarea { font: inherit; width: 100%; min-height: 4.5em; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
+  td.empty-row { color: var(--sub); text-align: center; }
+  .empty { color: var(--sub); text-align: center; padding: 24px 0; }
+  .error { background: #fdecec; color: var(--danger); border: 1px solid #f3c2c2; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>行動記録メモ</h1>
+    <span class="spacer"></span>
+    <span class="user" id="user-name"></span>
+    <button type="button" id="pw-btn">パスワード変更</button>
+    <a class="btn" href="/users" id="users-link" hidden>ユーザ管理</a>
+    <button type="button" id="logout-btn">ログアウト</button>
+  </header>
+  <div id="initial-pw-notice" class="notice" hidden>
+    管理者の初期パスワードのままです。パスワードを変更してください。<button type="button" id="notice-pw-btn">変更する</button>
+  </div>
+  <div id="error" class="error" hidden></div>
+
+  <section class="card">
+    <div class="patterns" id="patterns">
+      <button type="button" data-p="sleep">🌙<span>睡眠</span></button>
+      <button type="button" data-p="meal">🍚<span>食事</span></button>
+      <button type="button" data-p="medicine">💊<span>服薬</span></button>
+      <button type="button" data-p="out">🚶<span>外出</span></button>
+      <button type="button" data-p="other">📝<span>その他</span></button>
+    </div>
+    <div id="sleep-status" class="status" hidden></div>
+
+    <form id="entry-form" autocomplete="off" novalidate>
+      <label for="entry-date">日付</label>
+      <div class="row"><input type="date" id="entry-date" required></div>
+
+      <label for="start" id="start-label">開始時刻</label>
+      <div class="row">
+        <input type="text" id="start" class="time-input" inputmode="numeric" placeholder="例 9:30 / 25:00" required>
+        <button type="button" data-now="start">今</button>
+        <span class="hint" id="start-hint"></span>
+      </div>
+
+      <label for="end" id="end-label">終了時刻</label>
+      <div class="row" id="end-row">
+        <input type="text" id="end" class="time-input" inputmode="numeric" placeholder="未入力可">
+        <button type="button" data-now="end">今</button>
+        <span class="hint" id="end-hint"></span>
+      </div>
+
+      <label for="note" id="note-label">内容</label>
+      <div class="row" id="note-row">
+        <input type="text" id="note" maxlength="20">
+        <span class="hint" id="note-count">0/20</span>
+      </div>
+      <div class="chips" id="note-chips" hidden></div>
+      <datalist id="history-meal"></datalist>
+      <datalist id="history-medicine"></datalist>
+      <datalist id="history-out"></datalist>
+      <datalist id="history-other"></datalist>
+
+      <div class="actions">
+        <button type="submit" class="primary" id="submit-btn">記録する</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <div class="nav">
+      <span class="tabs">
+        <button id="mode-day" class="active">1日</button>
+        <button id="mode-range">期間</button>
+      </span>
+      <button id="prev" title="前へ">◀</button>
+      <input type="date" id="from">
+      <span id="range-to" hidden>〜 <input type="date" id="to"></span>
+      <button id="next" title="次へ">▶</button>
+      <span class="spacer"></span>
+      <button id="pdf-btn" title="表示中の期間を含む週（月〜日）ごとの帳票をPDFで表示">PDF出力</button>
+      <button id="export-btn" title="表示中の期間をCSVで保存">CSV出力</button>
+    </div>
+    <div class="nav presets">
+      <button data-preset="today">今日</button>
+      <button data-preset="yesterday">昨日</button>
+      <button data-preset="week">今週</button>
+      <button data-preset="last7">過去7日</button>
+      <button data-preset="month">今月</button>
+      <button data-preset="lastmonth">先月</button>
+    </div>
+    <div id="days"></div>
+  </section>
+</main>
+
+<dialog id="pw-dialog">
+  <h2>パスワード変更</h2>
+  <form id="pw-form" method="dialog" autocomplete="off" novalidate>
+    <label for="pw-current">現在のパスワード</label>
+    <input type="password" id="pw-current" autocomplete="current-password" required>
+    <label for="pw-new">新しいパスワード</label>
+    <input type="password" id="pw-new" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="8文字以上">
+    <label for="pw-confirm">新しいパスワード（確認）</label>
+    <input type="password" id="pw-confirm" autocomplete="new-password" required>
+    <div class="dlg-error" id="pw-error"></div>
+    <div class="actions">
+      <button type="button" id="pw-cancel">キャンセル</button>
+      <button type="submit" class="primary">変更する</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const MAX_RANGE_DAYS = 400;
+  const MAX_NOTE = 20;
+  const DAY_MIN = 24 * 60;
+  const MAX_MIN = 47 * 60 + 59;              // 時刻入力の上限 47:59
+  const SLEEP_MAX_MIN = 48 * 60;             // 起床を紐づける睡眠の最長時間
+  const $ = (id) => document.getElementById(id);
+
+  // 行動の種類（DB上の category）。入力パターン（画面のボタン）も同じ4種類
+  const CAT = { sleep: '睡眠', meal: '食事', medicine: '服薬', out: '外出', other: 'その他' };
+  const PATTERNS = {
+    sleep: { startLabel: '就寝時刻', endLabel: '起床時刻' },
+    meal:  { startLabel: '開始時刻', endLabel: '終了時刻', noteLabel: 'メモ', placeholder: '例：朝食、昼食、夕食、間食',
+             presets: ['朝食', '昼食', '夕食', '間食'] },
+    // 服薬は時刻のみ（終了時刻なし）
+    medicine: { startLabel: '服薬時刻', noEnd: true, noteLabel: 'メモ', placeholder: '例：朝食後、昼食後、夕食後、就寝前',
+             presets: ['朝食後', '昼食後', '夕食後', '就寝前'] },
+    out:   { startLabel: '出発時刻', endLabel: '帰宅時刻', noteLabel: '行先', placeholder: '例：会社、スーパー、病院' },
+    other: { startLabel: '開始時刻', endLabel: '終了時刻', noteLabel: '内容', placeholder: '例：家事、読書、入浴' },
+  };
+  const NOTE_LABEL = { meal: 'メモ', medicine: 'メモ', out: '行先', other: '内容' };
+  const MAX_COMMENT = 1000;   // 1日の感想の最大文字数
+
+  // ---- API ----
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: { 'X-Requested-With': 'fetch', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { location.href = '/login'; throw new Error('ログインしてください'); }
+    if (!res.ok) throw new Error(data.error || `通信エラー (${res.status})`);
+    return data;
+  }
+  function showError(err) {
+    const el = $('error');
+    el.textContent = err ? `エラー: ${err.message || err}` : '';
+    el.hidden = !err;
+  }
+
+  // ---- 日付・時刻ユーティリティ ----
+  // 時刻は「通し分」（基準日からの日数×1440＋分）で計算する
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmtDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = () => fmtDate(new Date());
+  const dayNum = (s) => { const [y, m, d] = s.split('-').map(Number); return Date.UTC(y, m - 1, d) / 864e5; };
+  const fromDayNum = (n) => new Date(n * 864e5).toISOString().slice(0, 10);
+  const shiftDate = (s, days) => fromDayNum(dayNum(s) + days);
+  const WEEK = ['日', '月', '火', '水', '木', '金', '土'];
+  const weekday = (s) => new Date(dayNum(s) * 864e5).getUTCDay();
+  const fmtDay = (s) => { const [y, m, d] = s.split('-').map(Number); return `${y}/${m}/${d}（${WEEK[weekday(s)]}）`; };
+  const fmtMD = (s) => { const [, m, d] = s.split('-').map(Number); return `${m}/${d}`; };
+
+  const toMin = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+  const fmtHM = (min) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+  const fmtDur = (min) => {
+    min = Math.round(min);
+    const h = Math.floor(min / 60), m = min % 60;
+    return h ? `${h}時間${m ? m + '分' : ''}` : `${m}分`;
+  };
+  const dayStart = (date) => dayNum(date) * DAY_MIN;
+  const nowAbs = () => { const d = new Date(); return dayStart(fmtDate(d)) + d.getHours() * 60 + d.getMinutes(); };
+  // DBの日時 'YYYY-MM-DD HH:MM' ⇔ 通し分
+  const dtAbs = (s) => dayStart(s.slice(0, 10)) + toMin(s.slice(11));
+  const absDt = (a) => `${fromDayNum(Math.floor(a / DAY_MIN))} ${fmtHM(((a % DAY_MIN) + DAY_MIN) % DAY_MIN)}`;
+  const absDate = (a) => fromDayNum(Math.floor(a / DAY_MIN));
+  // 日付＋時刻（24時以降可。25:00 = 翌日1:00）→ 通し分
+  const toAbs = (date, hhmm) => dayStart(date) + toMin(hhmm);
+
+  /**
+   * 時刻入力を "HH:MM"（00:00〜47:59）に正規化。不正なら null。
+   * 「9:30」「0930」「930」「25:00」「２５：００」などを受け付ける。
+   */
+  function parseTime(raw) {
+    const s = String(raw).trim()
+      .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/[：時]/g, ':').replace(/分$/, '');
+    let h, m, mt;
+    if ((mt = s.match(/^(\d{1,2}):(\d{1,2})?$/))) { h = +mt[1]; m = mt[2] ? +mt[2] : 0; }
+    else if ((mt = s.match(/^(\d{1,2})(\d{2})$/))) { h = +mt[1]; m = +mt[2]; }
+    else if ((mt = s.match(/^(\d{1,2})$/))) { h = +mt[1]; m = 0; }
+    else return null;
+    if (h > 47 || m > 59) return null;
+    return `${pad(h)}:${pad(m)}`;
+  }
+  /**
+   * 終了時刻の入力値を通し分に。開始より後で最初に来るその時刻とする
+   * （例 開始 23:30・終了 7:00 → 翌7:00、前日 18:30 開始の昼寝・終了 19:30 → 前日 19:30）。
+   * 開始と同じ時刻なら null。24時間を超える記録は一覧の編集で日時（YYYY-MM-DD HH:MM）を入力する
+   */
+  function endAbsFrom(date, startAbs, endHM) {
+    let a = toAbs(date, endHM);
+    while (a - DAY_MIN > startAbs) a -= DAY_MIN;
+    while (a <= startAbs) a += DAY_MIN;
+    return a - startAbs < DAY_MIN ? a : null;   // 開始と同じ時刻（24時間後）は不正とする
+  }
+  // 基準日 0:00 からの分数を表示用に（日をまたぐ場合は「翌」等）
+  function relText(min) {
+    const off = Math.floor(min / DAY_MIN);
+    const hm = fmtHM(min - off * DAY_MIN);
+    if (off === 0) return hm;
+    if (off === 1) return `翌${hm}`;
+    if (off === -1) return `前日 ${hm}`;
+    return off > 0 ? `${off}日後 ${hm}` : `${-off}日前 ${hm}`;
+  }
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const badge = (cat) => `<span class="badge ${cat}">${CAT[cat]}</span>`;
+
+  // ---- 状態 ----
+  let mode = 'day';            // 'day' | 'range'
+  let from = today(), to = today();
+  let editingId = null;
+  let editFocusEnd = false;    // 「終了」ボタンから編集を開いた
+  let fetched = [];            // 表示期間にかかる行動記録（前日から続く睡眠なども含む）
+  let notes = new Map();       // 1日の感想（日付 → 本文）
+  const noteDrafts = new Map(); // 編集中の感想（日付 → 入力中の本文）。再描画しても消えないよう保持
+  const noteEditing = new Set(); // 感想を編集中の日付
+  let openSleep = null;        // 起床が未入力の最新の睡眠
+  let pattern = 'other';
+
+  const isSleepingNow = () => {
+    if (!openSleep) return false;
+    const now = nowAbs(), s = dtAbs(openSleep.start_time);
+    return s <= now && now - s <= SLEEP_MAX_MIN;
+  };
+  const sleepLabel = (s) => `${fmtMD(s.start_time.slice(0, 10))} ${s.start_time.slice(11)}`;
+
+  /**
+   * 記録が属する日（一覧・集計で表示する日）。
+   * 睡眠は就寝時刻が 18:00 以降なら翌日、18:00 より前なら就寝した日の行動とする
+   *   例 11/2 23:30 就寝 → 11/3 の睡眠、11/3 01:00 就寝 → 11/3 の睡眠、11/3 13:00 の昼寝 → 11/3
+   */
+  const SLEEP_DAY_START = 18 * 60;   // 18:00
+  const belongsDate = (a) => {
+    const d = a.start_time.slice(0, 10);
+    return a.category === 'sleep' && toMin(a.start_time.slice(11)) >= SLEEP_DAY_START ? shiftDate(d, 1) : d;
+  };
+  /** 睡眠の就寝時刻：日付（睡眠が属する日）と時刻から通し分を求める。18:00〜23:59 は前日の時刻とみなす */
+  const sleepStartAbs = (date, t) => {
+    const m = toMin(t);
+    return toAbs(date, t) - (m >= SLEEP_DAY_START && m < DAY_MIN ? DAY_MIN : 0);
+  };
+  /** 今から就寝する場合の日付（18:00 以降なら翌日） */
+  const sleepDateNow = () => shiftDate(today(), nowAbs() % DAY_MIN >= SLEEP_DAY_START ? 1 : 0);
+
+  /** 表示用の行：開始・終了の通し分、所要時間、状態 */
+  function toRow(a) {
+    const startAbs = dtAbs(a.start_time);
+    const endAbs = a.end_time ? dtAbs(a.end_time) : null;
+    const sleeping = a.category === 'sleep' && !a.end_time && openSleep?.id === a.id && isSleepingNow();
+    return {
+      ...a, startAbs, endAbs, sleeping,
+      date: belongsDate(a),                                       // 表示する日
+      dur: endAbs != null ? endAbs - startAbs : null,             // 終了入力済みのみ集計対象
+      elapsed: sleeping ? nowAbs() - startAbs : null,             // 睡眠中の経過時間（参考）
+    };
+  }
+
+  // ---- 取得 ----
+  async function reload() {
+    const [f, t] = [from, to];
+    try {
+      const [list, dayNotes, sleep, ...histories] = await Promise.all([
+        api('GET', `/api/activities?from=${f}&to=${t}`),
+        api('GET', `/api/daily-notes?from=${f}&to=${t}`),
+        api('GET', '/api/activities/open-sleep'),
+        ...Object.keys(NOTE_LABEL).map(c => api('GET', `/api/history?category=${c}`)),
+      ]);
+      const wasWaking = isWaking();
+      openSleep = sleep;
+      Object.keys(NOTE_LABEL).forEach((c, i) => renderHistory(`history-${c}`, histories[i]));
+      if (wasWaking !== isWaking()) resetForm();   // 睡眠中かどうかが変わったらフォームを切り替え
+      updateForm();
+      if (f !== from || t !== to) return;  // 取得中に表示期間が変わった
+      fetched = list;
+      notes = new Map(dayNotes.map(n => [n.date, n.comment]));
+      showError(null);
+    } catch (err) {
+      showError(err);
+    }
+    render();
+  }
+
+  // ==================================================================
+  // 入力フォーム
+  // ==================================================================
+  // 「今」：入力欄の日付を基準にした現在時刻（昨日の日付なら 25:30 のように24時以降で入る）
+  function nowFor(date) {
+    const diff = nowAbs() - dayStart(date);
+    return diff >= 0 && diff <= MAX_MIN ? fmtHM(diff) : fmtHM(nowAbs() % DAY_MIN);
+  }
+  // 睡眠ボタンで「起床」を記録する状態か（起床未入力の睡眠があり、現在睡眠中）
+  const isWaking = () => pattern === 'sleep' && isSleepingNow();
+
+  /**
+   * 開始の通し分。睡眠は日付を「睡眠が属する日」とし、就寝時刻 18:00 以降は前日とみなす
+   * （例 日付 11/5・就寝 23:30 → 11/4 23:30、日付 11/5・就寝 1:00 → 11/5 1:00）
+   */
+  function startAbsOf(date, t) {
+    return pattern === 'sleep' ? sleepStartAbs(date, t) : toAbs(date, t);
+  }
+
+  function startHint(date, t, raw) {
+    if (raw && !t) return '00:00〜47:59 で入力してください';
+    if (!t || !date) return '24時以降は翌日扱い';
+    const rel = startAbsOf(date, t) - dayStart(date);
+    return rel < 0 || rel >= DAY_MIN ? `= ${relText(rel)}` : '24時以降は翌日扱い';
+  }
+
+  /** パターン・入力値に応じてフォームの表示を更新 */
+  function updateForm() {
+    const p = PATTERNS[pattern];
+    const waking = isWaking();
+    document.querySelectorAll('#patterns button').forEach(b => b.classList.toggle('active', b.dataset.p === pattern));
+    $('start-label').textContent = p.startLabel;
+    $('end-label').hidden = $('end-row').hidden = !!p.noEnd;
+    if (!p.noEnd) $('end-label').textContent = waking ? p.endLabel : `${p.endLabel}（任意）`;
+    $('submit-btn').textContent = pattern === 'sleep' ? (waking ? '起床を記録' : '就寝を記録') : `${CAT[pattern]}を記録`;
+
+    const date = $('entry-date').value;
+    const t = parseTime($('start').value);
+    $('start').setCustomValidity($('start').value && !t ? '時刻の形式が不正です' : '');
+    $('start-hint').textContent = startHint(date, t, $('start').value);
+
+    // 終了時刻（未入力可。睡眠中の起床は必須）
+    const e = parseTime($('end').value);
+    let hint = waking ? '起床時刻を入力してください' : '未入力可', bad = false;
+    if ($('end').value && !e) { hint = '00:00〜47:59 で入力してください'; bad = true; }
+    else if (e && t && date) {
+      const s = startAbsOf(date, t), ea = endAbsFrom(date, s, e);
+      if (ea == null) { hint = `${p.startLabel}より後にしてください`; bad = true; }
+      else hint = `→ ${relText(ea - dayStart(date))}（${fmtDur(ea - s)}）`;
+    }
+    $('end').setCustomValidity(bad ? hint : '');
+    $('end-hint').textContent = hint;
+
+    // メモ（食事）・行先（外出）・内容（その他）
+    const hasNote = !!p.noteLabel;
+    $('note-label').hidden = $('note-row').hidden = !hasNote;
+    if (hasNote) {
+      $('note-label').textContent = `${p.noteLabel}（任意）`;
+      $('note').placeholder = p.placeholder;
+      $('note').setAttribute('list', `history-${pattern}`);
+      $('note-count').textContent = `${$('note').value.length}/${MAX_NOTE}`;
+    }
+    // メモの候補（食事：朝食・昼食…／服薬：朝食後・昼食後…）
+    const chips = $('note-chips');
+    chips.hidden = !p.presets;
+    chips.style.setProperty('--chip-color', `var(--c-${pattern})`);
+    if (p.presets) {
+      chips.innerHTML = p.presets.map(v => `<button type="button" data-v="${v}" class="${$('note').value === v ? 'active' : ''}">${v}</button>`).join('');
+    }
+
+    // 睡眠の状態表示
+    const status = $('sleep-status');
+    status.hidden = !isSleepingNow();
+    if (isSleepingNow()) {
+      const since = `${sleepLabel(openSleep)}〜（${fmtDur(nowAbs() - dtAbs(openSleep.start_time))}）`;
+      status.textContent = waking
+        ? `😴 睡眠中：${since}。起床時刻を入力して記録してください`
+        : `😴 睡眠中：${since}`;
+    }
+  }
+
+  let formWaking = false;   // 直前のフォームが「起床」入力だったか（日付を就寝日に切り替えている）
+  function resetForm() {
+    const waking = isWaking();
+    if (waking) {
+      // 睡眠中：就寝は記録済みの値（日付は睡眠が属する日）、起床は現在時刻
+      $('entry-date').value = belongsDate(openSleep);
+      $('start').value = openSleep.start_time.slice(11);
+      $('end').value = fmtHM(nowAbs() % DAY_MIN);
+    } else {
+      if (formWaking) $('entry-date').value = mode === 'day' ? from : today();
+      if (pattern === 'sleep') {
+        // 今から就寝：18:00 以降なら日付は翌日（その睡眠が属する日）
+        $('entry-date').value = sleepDateNow();
+        $('start').value = fmtHM(nowAbs() % DAY_MIN);
+      } else {
+        if ($('entry-date').value === sleepDateNow() && sleepDateNow() !== today()) $('entry-date').value = mode === 'day' ? from : today();
+        $('start').value = nowFor($('entry-date').value || today());   // 開始は現在時刻が既定
+      }
+      $('end').value = '';
+    }
+    formWaking = waking;
+    $('note').value = '';
+    updateForm();
+  }
+  const focusFirst = () => (isWaking() ? $('end') : PATTERNS[pattern].noteLabel ? $('note') : $('start')).focus();
+
+  $('patterns').onclick = (ev) => {
+    const btn = ev.target.closest('button[data-p]');
+    if (!btn) return;
+    pattern = btn.dataset.p;
+    resetForm();
+    focusFirst();
+  };
+  $('note-chips').onclick = (ev) => {
+    const v = ev.target.closest('button[data-v]')?.dataset.v;
+    if (!v) return;
+    $('note').value = v;
+    updateForm();
+  };
+  ['start', 'end'].forEach(id => {
+    $(id).oninput = updateForm;
+    $(id).onblur = () => { const t = parseTime($(id).value); if (t) $(id).value = t; updateForm(); };
+  });
+  $('note').oninput = updateForm;
+  $('entry-date').onchange = updateForm;
+  document.querySelectorAll('[data-now]').forEach(b => {
+    b.onclick = () => {
+      if (b.dataset.now === 'start' && pattern === 'sleep' && !isWaking()) {
+        $('entry-date').value = sleepDateNow();
+        $('start').value = fmtHM(nowAbs() % DAY_MIN);
+      } else {
+        $(b.dataset.now).value = b.dataset.now === 'end' ? fmtHM(nowAbs() % DAY_MIN) : nowFor($('entry-date').value || today());
+      }
+      updateForm();
+    };
+  });
+
+  $('entry-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const p = PATTERNS[pattern];
+    const waking = isWaking();
+    const date = $('entry-date').value;
+    const t = parseTime($('start').value);
+    if (!date) return showError('日付を入力してください');
+    if (!t) { $('start').focus(); return showError(`${p.startLabel}は 00:00〜47:59 の形式で入力してください（例 9:30、25:00）`); }
+    const startAbs = startAbsOf(date, t);
+    let endAbs = null;
+    if (!p.noEnd && $('end').value.trim()) {
+      const e = parseTime($('end').value);
+      endAbs = e && endAbsFrom(date, startAbs, e);
+      if (endAbs == null) { $('end').focus(); return showError(`${p.endLabel}は${p.startLabel}より後の時刻を入力してください`); }
+    } else if (waking) {
+      $('end').focus(); return showError('起床時刻を入力してください');
+    }
+    const body = {
+      category: pattern,
+      start_time: absDt(startAbs),
+      end_time: endAbs != null ? absDt(endAbs) : null,
+      note: p.noteLabel ? $('note').value.trim() : '',
+    };
+
+    const btn = $('submit-btn');
+    btn.disabled = true;
+    try {
+      if (waking) {
+        // 睡眠中：記録済みの睡眠に起床時刻（end_time）を入れる
+        await api('PUT', `/api/activities/${openSleep.id}`, body);
+      } else {
+        await api('POST', '/api/activities', body);
+      }
+      if (waking) pattern = 'other';
+      $('entry-date').value = mode === 'day' ? from : today();
+      await reload();
+      resetForm();
+      focusFirst();
+    } catch (err) {
+      showError(err);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  // ==================================================================
+  // 一覧
+  // ==================================================================
+  const rangeDates = () => { const out = []; for (let d = from; d <= to; d = shiftDate(d, 1)) out.push(d); return out; };
+
+  function render() {
+    $('from').value = from;
+    $('to').value = to;
+    $('range-to').hidden = mode !== 'range';
+    $('mode-day').classList.toggle('active', mode === 'day');
+    $('mode-range').classList.toggle('active', mode === 'range');
+
+    const all = fetched.map(toRow);
+    // 開始日で日ごとに分ける
+    const byDate = new Map();
+    all.filter(r => r.date >= from && r.date <= to).forEach(r => {
+      if (!byDate.has(r.date)) byDate.set(r.date, []);
+      byDate.get(r.date).push(r);
+    });
+    byDate.forEach(list => list.sort((a, b) => a.startAbs - b.startAbs || a.id - b.id));
+    // 別の日に属するが、その日にかかっている記録（日をまたぐ外出、翌朝起床の睡眠の就寝など）：参考表示
+    const carried = (date) => all.filter(r => r.date !== date
+      && r.startAbs < dayStart(date) + DAY_MIN
+      && (r.endAbs ?? (r.sleeping ? nowAbs() : -Infinity)) > dayStart(date));
+
+    const container = $('days');
+    container.innerHTML = '';
+    // 1日表示は記録が無くても表示（感想を書けるように）。期間表示は記録か感想がある日のみ
+    const dates = mode === 'day' ? [from]
+      : rangeDates().filter(d => (byDate.get(d) || []).length || carried(d).length || notes.get(d));
+    if (!dates.length) {
+      container.innerHTML = `<div class="empty">${mode === 'day' ? 'この日' : 'この期間'}の記録はありません</div>`;
+    }
+    dates.forEach(date => container.appendChild(renderDay(date, byDate.get(date) || [], carried(date))));
+  }
+
+  function renderDay(date, list, carriedList) {
+    const wrap = document.createElement('div');
+    wrap.className = 'day';
+    const total = list.reduce((s, r) => s + (r.dur || 0), 0);
+    const wd = weekday(date);
+    wrap.innerHTML = `
+      <div class="day-head">
+        <span class="${wd === 0 ? 'sun' : wd === 6 ? 'sat' : ''}">${fmtDay(date)}</span>
+        <span class="total">${total ? '合計 ' + fmtDur(total) : ''}</span>
+      </div>
+      <table>
+        <thead><tr><th>開始</th><th>終了</th><th>時間</th><th>行動</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>`;
+    const tbody = wrap.querySelector('tbody');
+    // 前日から続く記録は先頭、翌日に属する記録（夜の就寝など）は末尾に参考表示
+    carriedList.filter(r => r.startAbs < dayStart(date)).forEach(r => tbody.appendChild(renderCarried(r, date)));
+    list.forEach(r => tbody.appendChild(r.id === editingId ? renderEditRow(r) : renderRow(r)));
+    carriedList.filter(r => r.startAbs >= dayStart(date)).forEach(r => tbody.appendChild(renderCarried(r, date)));
+    if (!carriedList.length && !list.length) tbody.innerHTML = '<tr><td colspan="5" class="empty-row">記録なし</td></tr>';
+    wrap.appendChild(renderDayNote(date));
+    return wrap;
+  }
+
+  // 1日の感想。1日表示で未入力なら最初から入力欄を出す
+  function renderDayNote(date) {
+    const box = document.createElement('div');
+    box.className = 'day-note';
+    box.dataset.date = date;
+    const saved = notes.get(date) || '';
+    const editing = noteEditing.has(date) || (mode === 'day' && !saved);
+    if (editing) {
+      const text = noteDrafts.get(date) ?? saved;
+      box.innerHTML = `
+        <div class="note-head">1日の感想<span class="spacer"></span>
+          <span data-count>${text.length}/${MAX_COMMENT}</span>
+          ${saved || mode === 'range' ? '<button type="button" data-note-act="cancel">取消</button>' : ''}
+          <button type="button" class="primary" data-note-act="save">保存</button>
+        </div>
+        <textarea maxlength="${MAX_COMMENT}" placeholder="今日1日の感想を入力"></textarea>`;
+      box.querySelector('textarea').value = text;
+    } else {
+      box.innerHTML = `
+        <div class="note-head">1日の感想<span class="spacer"></span>
+          <button type="button" data-note-act="edit">${saved ? '編集' : '入力'}</button>
+        </div>
+        <div class="note-text">${saved ? esc(saved) : '<span class="muted">（未入力）</span>'}</div>`;
+    }
+    return box;
+  }
+
+  function endCell(r, base) {
+    if (r.sleeping) return '睡眠中';
+    if (r.endAbs == null) return '<span class="muted">未入力</span>';
+    return relText(r.endAbs - base);
+  }
+  function durCell(r) {
+    if (r.dur != null) return fmtDur(r.dur);
+    if (r.elapsed != null) return `<span class="muted">${fmtDur(r.elapsed)}経過</span>`;
+    return '';
+  }
+
+  function renderRow(r) {
+    const tr = document.createElement('tr');
+    tr.dataset.id = r.id;
+    tr.innerHTML = `
+      <td class="time">${relText(r.startAbs - dayStart(r.date))}</td>
+      <td class="time">${PATTERNS[r.category].noEnd ? '' : endCell(r, dayStart(r.date))}</td>
+      <td class="dur">${durCell(r)}</td>
+      <td class="text">${badge(r.category)}${esc(r.note)}</td>
+      <td class="ops">
+        ${r.endAbs == null && !PATTERNS[r.category].noEnd ? `<button data-act="finish">${r.category === 'sleep' ? '起床' : '終了'}</button>` : ''}
+        <button data-act="edit">編集</button><button data-act="del" class="danger">削除</button>
+      </td>`;
+    return tr;
+  }
+
+  // 前日以前に開始した記録（参考表示。当日の合計には含めない）
+  function renderCarried(r, date) {
+    const base = dayStart(date);
+    const tr = document.createElement('tr');
+    tr.className = 'cont';
+    tr.innerHTML = `
+      <td class="time">${relText(r.startAbs - base)}</td>
+      <td class="time">${endCell(r, base)}</td>
+      <td class="dur">${durCell(r)}</td>
+      <td class="text">${badge(r.category)}${esc(r.note)} <small>（${fmtMD(r.date)}に計上）</small></td>
+      <td></td>`;
+    return tr;
+  }
+
+  function renderEditRow(r) {
+    const tr = document.createElement('tr');
+    tr.className = 'editing';
+    tr.dataset.id = r.id;
+    tr.innerHTML = `
+      <td colspan="4">
+        <div class="edit-grid">
+          <select data-f="category">${Object.entries(CAT).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+          <input type="date" data-f="date" title="日付（睡眠は18:00以降の就寝なら翌日の日付）">
+          <input type="text" class="time-input" data-f="start" inputmode="numeric" title="開始時刻">
+          <span data-end>〜 <input type="text" class="time-input" data-f="end" inputmode="numeric" placeholder="未入力" title="終了時刻（開始以前の時刻は翌日とみなします）"></span>
+          <input type="text" data-f="note" maxlength="${MAX_NOTE}" style="flex:1;min-width:8em">
+        </div>
+      </td>
+      <td class="ops"><button data-act="save">保存</button><button data-act="cancel">取消</button></td>`;
+    const f = (name) => tr.querySelector(`[data-f=${name}]`);
+    // 編集は開始日（睡眠は就寝日）を基準に入力する
+    // 日付は記録が属する日（睡眠で 18:00 以降に就寝した場合は翌日）
+    const base = dayStart(r.date);
+    f('category').value = r.category;
+    f('date').value = r.date;
+    f('start').value = fmtHM(((r.startAbs - base) % DAY_MIN + DAY_MIN) % DAY_MIN);
+    // 終了は時刻のみ（開始より後で最初のその時刻と解釈）。24時間以上の記録は日時で表示
+    const hmOf = (a) => fmtHM(((a % DAY_MIN) + DAY_MIN) % DAY_MIN);
+    if (r.endAbs != null) f('end').value = r.endAbs - r.startAbs < DAY_MIN ? hmOf(r.endAbs) : r.end_time;
+    else if (editFocusEnd) { const n = nowAbs(); if (n > r.startAbs && n - r.startAbs < DAY_MIN) f('end').value = hmOf(n); }
+    f('note').value = r.note;
+    const sync = () => {
+      const cat = f('category').value;
+      f('note').hidden = cat === 'sleep';
+      f('note').placeholder = NOTE_LABEL[cat] || '';
+      f('note').setAttribute('list', `history-${cat}`);
+      tr.querySelector('[data-end]').hidden = !!PATTERNS[cat].noEnd;
+      f('start').title = PATTERNS[cat].startLabel;
+      f('end').title = cat === 'sleep' ? '起床時刻' : '終了時刻';
+    };
+    f('category').onchange = sync;
+    sync();
+    if (editFocusEnd) setTimeout(() => f('end').focus());
+    return tr;
+  }
+
+  $('days').onclick = async (ev) => {
+    const btn = ev.target.closest('button');
+    if (!btn) return;
+    if (btn.dataset.noteAct) return onNoteAction(btn);
+    const tr = btn.closest('tr');
+    const id = Number(tr.dataset.id);
+    const a = fetched.find(x => x.id === id);
+    try {
+      switch (btn.dataset.act) {
+        case 'edit': editingId = id; editFocusEnd = false; render(); break;
+        case 'finish': editingId = id; editFocusEnd = true; render(); break;   // 終了時刻を入力
+        case 'cancel': editingId = null; render(); break;
+        case 'save': {
+          const f = (name) => tr.querySelector(`[data-f=${name}]`).value.trim();
+          const category = f('category'), date = f('date');
+          const s = parseTime(f('start'));
+          if (!date || !s) return showError('日付・開始時刻（00:00〜47:59）を正しく入力してください');
+          const startAbs = category === 'sleep' ? sleepStartAbs(date, s) : toAbs(date, s);
+          let endAbs = null;
+          const endRaw = PATTERNS[category].noEnd ? '' : f('end');
+          if (endRaw) {
+            if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(endRaw)) {
+              endAbs = dtAbs(endRaw);   // 48時間以上の記録は日時で表示・入力
+            } else {
+              const e = parseTime(endRaw);
+              endAbs = e && endAbsFrom(date, startAbs, e);
+            }
+            if (endAbs == null || endAbs <= startAbs) return showError('終了時刻は開始時刻より後にしてください');
+          }
+          await api('PUT', `/api/activities/${id}`, {
+            category,
+            start_time: absDt(startAbs),
+            end_time: endAbs != null ? absDt(endAbs) : null,
+            note: category === 'sleep' ? '' : f('note'),
+          });
+          editingId = null;
+          await reload();
+          break;
+        }
+        case 'del': {
+          const name = `${CAT[a.category]}${a.note ? '「' + a.note + '」' : ''}`;
+          if (confirm(`${fmtMD(a.start_time.slice(0, 10))} ${a.start_time.slice(11)} の${name}を削除しますか？`)) {
+            await api('DELETE', `/api/activities/${id}`);
+            await reload();
+          }
+          break;
+        }
+      }
+    } catch (err) {
+      showError(err);
+    }
+  };
+
+  async function onNoteAction(btn) {
+    const box = btn.closest('.day-note');
+    const date = box.dataset.date;
+    switch (btn.dataset.noteAct) {
+      case 'edit': noteEditing.add(date); render(); focusNote(date); break;
+      case 'cancel': noteEditing.delete(date); noteDrafts.delete(date); render(); break;
+      case 'save': {
+        const comment = box.querySelector('textarea').value.trim();
+        btn.disabled = true;
+        try {
+          await api('PUT', `/api/daily-notes/${date}`, { comment });
+          if (comment) notes.set(date, comment); else notes.delete(date);
+          noteEditing.delete(date);
+          noteDrafts.delete(date);
+          showError(null);
+          render();
+        } catch (err) {
+          showError(err);
+          btn.disabled = false;
+        }
+        break;
+      }
+    }
+  }
+  const focusNote = (date) => document.querySelector(`.day-note[data-date="${date}"] textarea`)?.focus();
+  // 入力中の感想を保持（1分ごとの再描画などで消えないように）
+  $('days').addEventListener('input', (ev) => {
+    if (!ev.target.matches('.day-note textarea')) return;
+    const box = ev.target.closest('.day-note');
+    noteDrafts.set(box.dataset.date, ev.target.value);
+    box.querySelector('[data-count]').textContent = `${ev.target.value.length}/${MAX_COMMENT}`;
+  });
+
+  $('days').onkeydown = (ev) => {
+    if (ev.key === 'Enter' && ev.target.matches('tr.editing input')) {
+      ev.target.closest('tr').querySelector('[data-act=save]').click();
+    } else if (ev.key === 'Escape' && ev.target.closest('tr.editing')) { editingId = null; render(); }
+  };
+
+  function renderHistory(id, texts) {
+    const dl = $(id);
+    dl.innerHTML = '';
+    texts.forEach(t => { const o = document.createElement('option'); o.value = t; dl.appendChild(o); });
+  }
+
+  // ---- 表示期間の操作 ----
+  function setRange(f, t, newMode = mode) {
+    if (t < f) [f, t] = [t, f];
+    if (dayNum(t) - dayNum(f) >= MAX_RANGE_DAYS) {
+      showError(`期間は${MAX_RANGE_DAYS}日以内にしてください`);
+      return render();
+    }
+    mode = newMode;
+    from = f; to = mode === 'day' ? f : t;
+    editingId = null;
+    if (mode === 'day') { $('entry-date').value = from; updateForm(); }
+    reload();
+  }
+
+  $('mode-day').onclick = () => setRange(from, from, 'day');
+  $('mode-range').onclick = () => setRange(mode === 'day' ? shiftDate(from, -6) : from, to, 'range');
+  $('from').onchange = (ev) => { if (ev.target.value) setRange(ev.target.value, mode === 'day' ? ev.target.value : (ev.target.value > to ? ev.target.value : to)); };
+  $('to').onchange = (ev) => { if (ev.target.value) setRange(from, ev.target.value); };
+  // ◀ ▶ は表示中の日数ぶん移動
+  const span = () => dayNum(to) - dayNum(from) + 1;
+  $('prev').onclick = () => setRange(shiftDate(from, -span()), shiftDate(to, -span()));
+  $('next').onclick = () => setRange(shiftDate(from, span()), shiftDate(to, span()));
+
+  document.querySelector('.presets').onclick = (ev) => {
+    const p = ev.target.dataset.preset;
+    if (!p) return;
+    const t = today();
+    const [y, m] = t.split('-').map(Number);
+    const monthStart = (yy, mm) => fmtDate(new Date(yy, mm - 1, 1));
+    const monthEnd = (yy, mm) => fmtDate(new Date(yy, mm, 0));
+    switch (p) {
+      case 'today': return setRange(t, t, 'day');
+      case 'yesterday': return setRange(shiftDate(t, -1), shiftDate(t, -1), 'day');
+      case 'week': {  // 月曜始まり
+        const mon = shiftDate(t, -((weekday(t) + 6) % 7));
+        return setRange(mon, shiftDate(mon, 6), 'range');
+      }
+      case 'last7': return setRange(shiftDate(t, -6), t, 'range');
+      case 'month': return setRange(monthStart(y, m), monthEnd(y, m), 'range');
+      case 'lastmonth': return setRange(monthStart(y, m - 1), monthEnd(y, m - 1), 'range');
+    }
+  };
+
+  // ---- PDF帳票（表示中の期間を含む月〜日の週ごと・A4横・1週1ページ） ----
+  $('pdf-btn').onclick = () => {
+    window.open(`/api/report.pdf?from=${from}&to=${to}`, '_blank');
+  };
+
+  // ---- CSV出力（表示中の期間に開始した記録） ----
+  $('export-btn').onclick = () => {
+    const rows = fetched.map(toRow).filter(r => r.date >= from && r.date <= to)
+      .sort((a, b) => a.startAbs - b.startAbs || a.id - b.id);
+    if (!rows.length) { alert('この期間の記録はありません'); return; }
+    const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
+    const out = [['種類', '開始日時', '終了日時', '所要時間(分)', 'メモ']];
+    rows.forEach(r => out.push([CAT[r.category], r.start_time, r.end_time || '', r.dur ?? '', r.note]));
+    const csv = '﻿' + out.map(r => r.map(q).join(',')).join('\r\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = from === to ? `行動記録_${from}.csv` : `行動記録_${from}_${to}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  // 睡眠中の経過時間などを1分ごとに更新（編集中は除く）
+  setInterval(() => {
+    if (!editingId && !document.activeElement?.matches('.day-note textarea')) render();
+    updateForm();
+  }, 60000);
+
+  $('entry-date').value = today();
+  resetForm();
+  // ---- ログインユーザー・パスワード変更・ログアウト ----
+  const INITIAL_PW_KEY = 'alog.initialPassword';
+  async function loadMe() {
+    const me = await api('GET', '/api/me');
+    $('user-name').textContent = `${me.name}（${me.user_id}）`;
+    $('users-link').hidden = !me.is_admin;
+    $('initial-pw-notice').hidden = sessionStorage.getItem(INITIAL_PW_KEY) !== '1';
+  }
+  const openPwDialog = () => { $('pw-form').reset(); $('pw-error').textContent = ''; $('pw-dialog').showModal(); };
+  $('pw-btn').onclick = openPwDialog;
+  $('notice-pw-btn').onclick = openPwDialog;
+  $('pw-cancel').onclick = () => $('pw-dialog').close();
+  $('pw-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const cur = $('pw-current').value, nw = $('pw-new').value;
+    if (nw !== $('pw-confirm').value) { $('pw-error').textContent = '新しいパスワード（確認）が一致しません'; return; }
+    try {
+      await api('PUT', '/api/me/password', { current_password: cur, new_password: nw });
+      sessionStorage.removeItem(INITIAL_PW_KEY);
+      $('initial-pw-notice').hidden = true;
+      $('pw-dialog').close();
+      alert('パスワードを変更しました');
+    } catch (err) {
+      $('pw-error').textContent = err.message;
+    }
+  };
+  $('logout-btn').onclick = async () => {
+    try { await api('POST', '/api/logout'); } catch { /* 失敗してもログイン画面へ */ }
+    sessionStorage.removeItem(INITIAL_PW_KEY);
+    location.href = '/login';
+  };
+
+  (async () => {
+    try { await loadMe(); } catch (err) { showError(err); return; }
+    await reload();
+    // 睡眠中なら「起床」、それ以外は「その他」を初期選択
+    if (isSleepingNow()) { pattern = 'sleep'; resetForm(); }
+    focusFirst();
+  })();
+})();
+</script>
+</body>
+</html>

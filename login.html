@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ログイン - 行動記録メモ</title>
+<style>
+  :root { --bg: #f5f6f8; --card: #fff; --text: #222; --sub: #777; --accent: #2f6fde; --danger: #d94848; --border: #e2e4e8; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 28px; width: min(360px, 92vw); }
+  h1 { font-size: 1.3rem; margin: 0 0 20px; text-align: center; }
+  label { display: block; font-size: .9rem; color: var(--sub); margin: 12px 0 4px; }
+  input { font: inherit; width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px; }
+  button {
+    font: inherit; width: 100%; margin-top: 20px; padding: 10px; border: 0; border-radius: 6px;
+    background: var(--accent); color: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: .6; cursor: default; }
+  .error { color: var(--danger); font-size: .9rem; margin-top: 12px; min-height: 1.2em; }
+</style>
+</head>
+<body>
+<main class="card">
+  <h1>行動記録メモ</h1>
+  <form id="login-form" novalidate>
+    <label for="user-id">ユーザID</label>
+    <input type="text" id="user-id" autocomplete="username" autocapitalize="off" spellcheck="false" required autofocus>
+    <label for="password">パスワード</label>
+    <input type="password" id="password" autocomplete="current-password" required>
+    <button type="submit" id="login-btn">ログイン</button>
+    <div class="error" id="error" role="alert"></div>
+  </form>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  $('login-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const user_id = $('user-id').value.trim(), password = $('password').value;
+    if (!user_id || !password) { $('error').textContent = 'ユーザIDとパスワードを入力してください'; return; }
+    $('login-btn').disabled = true;
+    $('error').textContent = '';
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'fetch' },
+        body: JSON.stringify({ user_id, password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `ログインに失敗しました (${res.status})`);
+      // 管理者が初期パスワードのままなら、メイン画面で変更を促す
+      if (data.initial_password) sessionStorage.setItem('alog.initialPassword', '1');
+      else sessionStorage.removeItem('alog.initialPassword');
+      location.href = '/';
+    } catch (err) {
+      $('error').textContent = err.message;
+      $('password').select();
+    } finally {
+      $('login-btn').disabled = false;
+    }
+  };
+</script>
+</body>
+</html>

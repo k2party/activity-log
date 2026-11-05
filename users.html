@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ユーザ管理 - 行動記録メモ</title>
+<style>
+  :root { --bg: #f5f6f8; --card: #fff; --text: #222; --sub: #777; --accent: #2f6fde; --danger: #d94848; --border: #e2e4e8; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 16px; }
+  header.top { display: flex; align-items: center; gap: 8px; margin: 8px 0 16px; }
+  header.top .spacer { flex: 1; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  input, button { font: inherit; }
+  input[type=text], input[type=password] { padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; width: 100%; }
+  button, a.btn {
+    padding: 7px 14px; border: 1px solid var(--border); border-radius: 6px; background: #fff;
+    cursor: pointer; white-space: nowrap; color: inherit; text-decoration: none; display: inline-block;
+  }
+  button:hover, a.btn:hover { background: #f0f2f5; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  .add-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; align-items: end; }
+  .add-form label { font-size: .85rem; color: var(--sub); display: block; margin-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { padding: 8px 6px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }
+  th { font-size: .8rem; color: var(--sub); font-weight: normal; }
+  td.ops { text-align: right; white-space: nowrap; }
+  td.ops button { padding: 4px 10px; font-size: .85rem; }
+  .tag { font-size: .75rem; background: #eef3fd; color: var(--accent); border-radius: 10px; padding: 1px 8px; margin-left: 6px; }
+  .hint { font-size: .8rem; color: var(--sub); margin-top: 8px; }
+  .error { background: #fdecec; color: var(--danger); border: 1px solid #f3c2c2; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+  .ok { background: #eaf7ef; color: #1f7a4a; border: 1px solid #bfe5cd; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+  @media (max-width: 600px) { .add-form { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <h1>ユーザ管理</h1>
+    <span class="spacer"></span>
+    <a class="btn" href="/">行動記録に戻る</a>
+  </header>
+  <div id="error" class="error" hidden></div>
+  <div id="ok" class="ok" hidden></div>
+
+  <section class="card">
+    <h2>ユーザー追加</h2>
+    <form id="add-form" class="add-form" autocomplete="off" novalidate>
+      <div><label for="new-id">ユーザID</label><input type="text" id="new-id" maxlength="32" autocapitalize="off" spellcheck="false" placeholder="半角英数字"></div>
+      <div><label for="new-name">氏名</label><input type="text" id="new-name" maxlength="50"></div>
+      <div><label for="new-pw">パスワード</label><input type="password" id="new-pw" maxlength="128" autocomplete="new-password" placeholder="8文字以上"></div>
+      <button type="submit" class="primary">追加</button>
+    </form>
+    <div class="hint">ユーザIDは半角英数字と _ . @ - で32文字以内。登録後は変更できません。</div>
+  </section>
+
+  <section class="card">
+    <h2>ユーザー一覧</h2>
+    <table>
+      <thead><tr><th>ユーザID</th><th>氏名</th><th>新しいパスワード</th><th></th></tr></thead>
+      <tbody id="list"></tbody>
+    </table>
+    <div class="hint">パスワードを変更するとき以外は「新しいパスワード」は空欄のままにしてください。パスワードを変更すると、そのユーザーは再ログインが必要になります。</div>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function api(method, path, body) {
+    const res = await fetch(path, {
+      method,
+      headers: { 'X-Requested-With': 'fetch', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 401) { location.href = '/login'; throw new Error('ログインしてください'); }
+    if (res.status === 403) { location.href = '/'; throw new Error(data.error); }
+    if (!res.ok) throw new Error(data.error || `通信エラー (${res.status})`);
+    return data;
+  }
+  function message(kind, text) {
+    $('error').hidden = kind !== 'error' || !text;
+    $('ok').hidden = kind !== 'ok' || !text;
+    $(kind === 'error' ? 'error' : 'ok').textContent = text || '';
+  }
+
+  async function load() {
+    try {
+      const users = await api('GET', '/api/users');
+      const tbody = $('list');
+      tbody.innerHTML = '';
+      users.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = u.user_id;
+        tr.innerHTML = `
+          <td>${esc(u.user_id)}${u.is_admin ? '<span class="tag">管理者</span>' : ''}</td>
+          <td><input type="text" data-f="name" maxlength="50"></td>
+          <td><input type="password" data-f="password" maxlength="128" autocomplete="new-password" placeholder="変更時のみ入力"></td>
+          <td class="ops">
+            <button data-act="save">保存</button>
+            ${u.is_admin ? '' : '<button data-act="del" class="danger">削除</button>'}
+          </td>`;
+        tr.querySelector('[data-f=name]').value = u.name;
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      message('error', err.message);
+    }
+  }
+
+  $('add-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const user_id = $('new-id').value.trim(), name = $('new-name').value.trim(), password = $('new-pw').value;
+    if (!user_id || !name || !password) return message('error', 'ユーザID・氏名・パスワードをすべて入力してください');
+    try {
+      await api('POST', '/api/users', { user_id, name, password });
+      $('add-form').reset();
+      message('ok', `ユーザー「${user_id}」を追加しました`);
+      await load();
+    } catch (err) {
+      message('error', err.message);
+    }
+  };
+
+  $('list').onclick = async (ev) => {
+    const btn = ev.target.closest('button[data-act]');
+    if (!btn) return;
+    const tr = btn.closest('tr');
+    const id = tr.dataset.id;
+    const path = `/api/users/${encodeURIComponent(id)}`;
+    try {
+      if (btn.dataset.act === 'save') {
+        const body = { name: tr.querySelector('[data-f=name]').value.trim() };
+        const pw = tr.querySelector('[data-f=password]').value;
+        if (pw) body.password = pw;
+        await api('PUT', path, body);
+        message('ok', `ユーザー「${id}」を更新しました${pw ? '（パスワードを変更しました）' : ''}`);
+        await load();
+      } else if (btn.dataset.act === 'del') {
+        if (!confirm(`ユーザー「${id}」を削除しますか？\nこのユーザーの行動記録もすべて削除されます。`)) return;
+        await api('DELETE', path);
+        message('ok', `ユーザー「${id}」を削除しました`);
+        await load();
+      }
+    } catch (err) {
+      message('error', err.message);
+    }
+  };
+
+  load();
+})();
+</script>
+</body>
+</html>

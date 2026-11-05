@@ -1,0 +1,13 @@
+services:
+  app:
+    build: .
+    image: activity-log-app
+    restart: unless-stopped
+    ports:
+      # ホストOSのnginx（リバースプロキシ）から接続する。外部からの直接アクセスを防ぐため 127.0.0.1 のみに公開
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      - db-data:/data          # SQLiteファイルを永続化
+
+volumes:
+  db-data:
