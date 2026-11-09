@@ -516,10 +516,27 @@
   $('patterns').onclick = (ev) => {
     const btn = ev.target.closest('button[data-p]');
     if (!btn) return;
-    pattern = btn.dataset.p;
-    resetForm();
+    switchPattern(btn.dataset.p);
     focusFirst();
   };
+  /**
+   * 入力パターンを切り替える。日付・時刻・メモなどの入力値は引き継ぐ。
+   * ただし睡眠中の「起床」入力に切り替わる／から戻る場合はフォームを初期化する
+   */
+  function switchPattern(next) {
+    const prev = pattern, wasWaking = isWaking();
+    pattern = next;
+    if (prev === next) return updateForm();
+    if (wasWaking || isWaking()) return resetForm();
+    // 睡眠の日付は「睡眠が属する日」（18:00 以降の就寝は翌日）なので、
+    // 睡眠⇔それ以外の切り替えでは開始の日時が変わらないよう日付を付け替える
+    const date = $('entry-date').value, t = parseTime($('start').value);
+    if (date && t && (prev === 'sleep') !== (next === 'sleep')) {
+      const m = toMin(t);
+      if (m >= SLEEP_DAY_START && m < DAY_MIN) $('entry-date').value = shiftDate(date, next === 'sleep' ? 1 : -1);
+    }
+    updateForm();
+  }
   $('note-chips').onclick = (ev) => {
     const v = ev.target.closest('button[data-v]')?.dataset.v;
     if (!v) return;
