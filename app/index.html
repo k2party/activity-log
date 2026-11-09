@@ -352,19 +352,30 @@
 
   /**
    * 記録が属する日（一覧・集計で表示する日）。
-   * 睡眠は就寝時刻が 18:00 以降なら翌日、18:00 より前なら就寝した日の行動とする
-   *   例 11/2 23:30 就寝 → 11/3 の睡眠、11/3 01:00 就寝 → 11/3 の睡眠、11/3 13:00 の昼寝 → 11/3
+   * 睡眠は就寝時刻が 18:00 以降なら翌日、18:00 より前なら就寝した日の行動とする。
+   * ただし 18:00 以降の就寝でも、起床が日をまたがない（24:00 より前）なら就寝した日の行動とする
+   *   例 11/2 23:30 就寝 → 11/3 の睡眠、11/3 01:00 就寝 → 11/3 の睡眠、11/3 13:00 の昼寝 → 11/3、
+   *      11/3 19:00〜21:00 の仮眠 → 11/3（起床が未入力の間は 11/4 として扱う）
    */
   const SLEEP_DAY_START = 18 * 60;   // 18:00
   const belongsDate = (a) => {
     const d = a.start_time.slice(0, 10);
-    return a.category === 'sleep' && toMin(a.start_time.slice(11)) >= SLEEP_DAY_START ? shiftDate(d, 1) : d;
+    if (a.category !== 'sleep' || toMin(a.start_time.slice(11)) < SLEEP_DAY_START) return d;
+    return a.end_time && dtAbs(a.end_time) < dayStart(d) + DAY_MIN ? d : shiftDate(d, 1);
   };
-  /** 睡眠の就寝時刻：日付（睡眠が属する日）と時刻から通し分を求める。18:00〜23:59 は前日の時刻とみなす */
-  const sleepStartAbs = (date, t) => {
+  /**
+   * 入力された就寝時刻 t・起床時刻 e（未入力可）が日をまたぐ睡眠＝翌日に属する睡眠か。
+   * 就寝 18:00〜23:59 で、起床が未入力か、就寝以前の時刻（翌朝）か 24:00 以降なら日をまたぐ
+   */
+  const sleepCrosses = (t, e) => {
     const m = toMin(t);
-    return toAbs(date, t) - (m >= SLEEP_DAY_START && m < DAY_MIN ? DAY_MIN : 0);
+    if (m < SLEEP_DAY_START || m >= DAY_MIN) return false;
+    return !(e && toMin(e) > m && toMin(e) < DAY_MIN);
   };
+  /** 睡眠の就寝時刻：日付（睡眠が属する日）と時刻から通し分を求める。日をまたぐ睡眠は前日の時刻とみなす */
+  const sleepStartAbs = (date, t, e) => toAbs(date, t) - (sleepCrosses(t, e) ? DAY_MIN : 0);
+  /** 就寝日（実際に就寝した日付）から、入力欄に入れる日付（睡眠が属する日）を求める */
+  const sleepDateOf = (startDate, t, e) => shiftDate(startDate, sleepCrosses(t, e) ? 1 : 0);
   /** 今から就寝する場合の日付（18:00 以降なら翌日） */
   const sleepDateNow = () => shiftDate(today(), nowAbs() % DAY_MIN >= SLEEP_DAY_START ? 1 : 0);
 
@@ -422,14 +433,16 @@
    * （例 日付 11/5・就寝 23:30 → 11/4 23:30、日付 11/5・就寝 1:00 → 11/5 1:00）
    */
   function startAbsOf(date, t) {
-    return pattern === 'sleep' ? sleepStartAbs(date, t) : toAbs(date, t);
+    return pattern === 'sleep' ? sleepStartAbs(date, t, parseTime($('end').value)) : toAbs(date, t);
   }
 
   function startHint(date, t, raw) {
     if (raw && !t) return '00:00〜47:59 で入力してください';
-    if (!t || !date) return '24時以降は翌日扱い';
+    // 睡眠は日付が「睡眠が属する日」なので、18:00 以降の就寝は前日の時刻になる
+    const base = pattern === 'sleep' ? '18時以降は前日の就寝扱い（24時前に起床なら当日）' : '24時以降は翌日扱い';
+    if (!t || !date) return base;
     const rel = startAbsOf(date, t) - dayStart(date);
-    return rel < 0 || rel >= DAY_MIN ? `= ${relText(rel)}` : '24時以降は翌日扱い';
+    return rel < 0 || rel >= DAY_MIN ? `= ${relText(rel)}` : base;
   }
 
   /** パターン・入力値に応じてフォームの表示を更新 */
@@ -441,6 +454,11 @@
     $('end-label').hidden = $('end-row').hidden = !!p.noEnd;
     if (!p.noEnd) $('end-label').textContent = waking ? p.endLabel : `${p.endLabel}（任意）`;
     $('submit-btn').textContent = pattern === 'sleep' ? (waking ? '起床を記録' : '就寝を記録') : `${CAT[pattern]}を記録`;
+
+    // 起床の入力：起床が 24:00 より前なら当日の睡眠になるので、日付（睡眠が属する日）を起床時刻に合わせる
+    if (waking && $('start').value === openSleep.start_time.slice(11)) {
+      $('entry-date').value = sleepDateOf(openSleep.start_time.slice(0, 10), openSleep.start_time.slice(11), parseTime($('end').value));
+    }
 
     const date = $('entry-date').value;
     const t = parseTime($('start').value);
@@ -528,12 +546,11 @@
     pattern = next;
     if (prev === next) return updateForm();
     if (wasWaking || isWaking()) return resetForm();
-    // 睡眠の日付は「睡眠が属する日」（18:00 以降の就寝は翌日）なので、
+    // 睡眠の日付は「睡眠が属する日」（18:00 以降の就寝で日をまたぐなら翌日）なので、
     // 睡眠⇔それ以外の切り替えでは開始の日時が変わらないよう日付を付け替える
     const date = $('entry-date').value, t = parseTime($('start').value);
-    if (date && t && (prev === 'sleep') !== (next === 'sleep')) {
-      const m = toMin(t);
-      if (m >= SLEEP_DAY_START && m < DAY_MIN) $('entry-date').value = shiftDate(date, next === 'sleep' ? 1 : -1);
+    if (date && t && (prev === 'sleep') !== (next === 'sleep') && sleepCrosses(t, parseTime($('end').value))) {
+      $('entry-date').value = shiftDate(date, next === 'sleep' ? 1 : -1);
     }
     updateForm();
   }
@@ -741,7 +758,7 @@
       <td colspan="4">
         <div class="edit-grid">
           <select data-f="category">${Object.entries(CAT).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
-          <input type="date" data-f="date" title="日付（睡眠は18:00以降の就寝なら翌日の日付）">
+          <input type="date" data-f="date" title="日付（睡眠は18:00以降の就寝で日をまたぐなら翌日の日付）">
           <input type="text" class="time-input" data-f="start" inputmode="numeric" title="開始時刻">
           <span data-end>〜 <input type="text" class="time-input" data-f="end" inputmode="numeric" placeholder="未入力" title="終了時刻（開始以前の時刻は翌日とみなします）"></span>
           <input type="text" data-f="note" maxlength="${MAX_NOTE}" style="flex:1;min-width:8em">
@@ -750,7 +767,7 @@
       <td class="ops"><button data-act="save">保存</button><button data-act="cancel">取消</button></td>`;
     const f = (name) => tr.querySelector(`[data-f=${name}]`);
     // 編集は開始日（睡眠は就寝日）を基準に入力する
-    // 日付は記録が属する日（睡眠で 18:00 以降に就寝した場合は翌日）
+    // 日付は記録が属する日（睡眠で 18:00 以降に就寝して日をまたぐ場合は翌日）
     const base = dayStart(r.date);
     f('category').value = r.category;
     f('date').value = r.date;
@@ -771,6 +788,20 @@
     };
     f('category').onchange = sync;
     sync();
+    // 睡眠の起床・終了を入力したとき、起床が 24:00 より前なら当日の睡眠になるので日付を合わせる
+    // （日付・就寝時刻を手で変えた場合はそのまま）
+    let dateTouched = false;
+    f('date').addEventListener('input', () => { dateTouched = true; });
+    const syncSleepDate = () => {
+      const t = parseTime(f('start').value);
+      if (dateTouched || r.category !== 'sleep' || f('category').value !== 'sleep' || t !== r.start_time.slice(11)) return;
+      const endRaw = f('end').value.trim();
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(endRaw)) return;
+      f('date').value = sleepDateOf(r.start_time.slice(0, 10), t, parseTime(endRaw));
+    };
+    f('end').addEventListener('input', syncSleepDate);
+    f('start').addEventListener('input', syncSleepDate);
+    syncSleepDate();
     if (editFocusEnd) setTimeout(() => f('end').focus());
     return tr;
   }
@@ -792,11 +823,13 @@
           const category = f('category'), date = f('date');
           const s = parseTime(f('start'));
           if (!date || !s) return showError('日付・開始時刻（00:00〜47:59）を正しく入力してください');
-          const startAbs = category === 'sleep' ? sleepStartAbs(date, s) : toAbs(date, s);
-          let endAbs = null;
           const endRaw = PATTERNS[category].noEnd ? '' : f('end');
+          // 終了を日時（24時間以上の記録）で入力した場合は日をまたぐ睡眠
+          const endDt = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(endRaw);
+          const startAbs = category === 'sleep' ? sleepStartAbs(date, s, endDt ? null : parseTime(endRaw)) : toAbs(date, s);
+          let endAbs = null;
           if (endRaw) {
-            if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(endRaw)) {
+            if (endDt) {
               endAbs = dtAbs(endRaw);   // 48時間以上の記録は日時で表示・入力
             } else {
               const e = parseTime(endRaw);

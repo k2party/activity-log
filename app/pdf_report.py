@@ -182,13 +182,17 @@ def time_range_text(start, end, base_date):
     return f"{s} 〜" if end is None else f"{s} 〜 {rel_time_text(end, base_date)}"
 
 
-SLEEP_DAY_START_HOUR = 18   # 睡眠は就寝時刻がこの時刻以降なら翌日の行動とする
+SLEEP_DAY_START_HOUR = 18   # 睡眠は就寝時刻がこの時刻以降（かつ日をまたぐ）なら翌日の行動とする
 
 
 def belongs_date(a, start, end):
-    """記録を表示する日。睡眠は就寝時刻が 18:00 以降なら翌日、18:00 より前なら就寝した日"""
+    """記録を表示する日。睡眠は就寝時刻が 18:00 以降なら翌日、18:00 より前なら就寝した日。
+    ただし 18:00 以降の就寝でも、起床が日をまたがない（24:00 より前）なら就寝した日"""
     if a["category"] == "sleep" and start.hour >= SLEEP_DAY_START_HOUR:
-        return start.date() + datetime.timedelta(days=1)
+        next_day = start.date() + datetime.timedelta(days=1)
+        if end is not None and end < datetime.datetime.combine(next_day, datetime.time()):
+            return start.date()
+        return next_day
     return start.date()
 
 
