@@ -196,6 +196,13 @@ def belongs_date(a, start, end):
     return start.date()
 
 
+def fmt_duration(start, end):
+    """所要時間「7時間30分」「45分」（画面の表示と同じ形式）"""
+    minutes = round((end - start).total_seconds() / 60)
+    h, m = divmod(minutes, 60)
+    return f"{h}時間{f'{m}分' if m else ''}" if h else f"{m}分"
+
+
 def fit_text(s, size, width):
     """列幅に収まらない場合は末尾を「…」で省略"""
     if text_width(s, size) <= width:
@@ -328,7 +335,12 @@ def render_week(monday, sunday, activities, comments, period_text, printed_at, o
                     base = ry + row_h / 2 + f * 0.36
                     p.text(xs["time"] + PAD, base, time_range_text(start, end, b.date), size=f)
                     p.text(xs["cat"] + PAD, base, CATEGORY_JA.get(a["category"], a["category"]), size=f)
-                    p.text(xs["note"] + PAD, base, fit_text(a["note"], f, widths["note"] - PAD * 2), size=f)
+                    # 睡眠はメモの代わりに睡眠時間（起床が未入力なら空欄）
+                    if a["category"] == "sleep":
+                        note = fmt_duration(start, end) if end else ""
+                    else:
+                        note = a["note"]
+                    p.text(xs["note"] + PAD, base, fit_text(note, f, widths["note"] - PAD * 2), size=f)
             else:
                 p.text(xs["time"] + PAD, first_base, "記録なし", size=f, color=GRAY_TEXT)
 

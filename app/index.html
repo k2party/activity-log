@@ -954,14 +954,16 @@
     window.open(`/api/report.pdf?from=${from}&to=${to}`, '_blank');
   };
 
-  // ---- CSV出力（表示中の期間に開始した記録） ----
+  // ---- CSV出力（表示中の期間に属する記録。日付は記録が属する日＝一覧・帳票と同じ基準日） ----
   $('export-btn').onclick = () => {
     const rows = fetched.map(toRow).filter(r => r.date >= from && r.date <= to)
-      .sort((a, b) => a.startAbs - b.startAbs || a.id - b.id);
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startAbs - b.startAbs || a.id - b.id);
     if (!rows.length) { alert('この期間の記録はありません'); return; }
     const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
-    const out = [['種類', '開始日時', '終了日時', '所要時間(分)', 'メモ']];
-    rows.forEach(r => out.push([CAT[r.category], r.start_time, r.end_time || '', r.dur ?? '', r.note]));
+    const out = [['日付', '種類', '開始日時', '終了日時', 'メモ']];
+    // 睡眠はメモの代わりに睡眠時間（帳票と同じ。起床が未入力なら空欄）
+    const memo = (r) => r.category === 'sleep' ? (r.dur != null ? fmtDur(r.dur) : '') : r.note;
+    rows.forEach(r => out.push([r.date, CAT[r.category], r.start_time, r.end_time || '', memo(r)]));
     const csv = '﻿' + out.map(r => r.map(q).join(',')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
