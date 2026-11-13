@@ -18,6 +18,8 @@ ENCODING = "UniJIS-UCS2-HW-H"     # Unicode(UCS-2) → CID。英数字は半角�
 WEEK_JA = "月火水木金土日"
 CATEGORY_JA = {"sleep": "睡眠", "meal": "食事", "medicine": "服薬", "out": "外出", "other": "その他"}
 NO_END_CATEGORIES = {"medicine"}   # 時刻のみ表示する行動
+# 出力日時は日本時間で記載する（サーバー・コンテナのタイムゾーンに依存しない。日本は夏時間なし）
+JST = datetime.timezone(datetime.timedelta(hours=9), "JST")
 
 
 def text_width(s, size):
@@ -110,7 +112,7 @@ def build_pdf(pages, title):
         f"<< /Type /Pages /Kids [{' '.join(f'{i} 0 R' for i in page_ids)}] /Count {len(page_ids)} >>".encode()
     )
     objs[catalog - 1] = f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode()
-    now = datetime.datetime.now().strftime("D:%Y%m%d%H%M%S")
+    now = datetime.datetime.now(JST).strftime("D:%Y%m%d%H%M%S+09'00'")
     info = add(
         f"<< /Title <FEFF{title.encode('utf-16-be').hex().upper()}> "
         f"/Producer (activity-log) /CreationDate ({now}) >>".encode()
@@ -138,6 +140,8 @@ TABLE_TOP = 78
 FOOTER_Y = PAGE_H - 18
 TABLE_BOTTOM = PAGE_H - 34
 HEADER_H = 20
+PAGE_HEADER_Y = 60                   # ページヘッダ（1行）のベースライン
+PAGE_HEADER_FONT = 12
 PAD = 5                              # セル内の左右余白
 MAX_FONT, MIN_FONT = 9.5, 5.0        # 1週が1ページに収まるよう、この範囲で文字サイズを自動調整
 ROW_RATIO = 2.0                      # 行の高さ = 文字サイズ × 2.0
@@ -249,7 +253,7 @@ class DayBlock:
         return self.height
 
 
-def render_week(monday, sunday, activities, comments, period_text, printed_at, owner_name=""):
+def render_week(monday, sunday, activities, comments, printed_at, owner_name=""):
     """1週間分のページ（内容が非常に多い場合のみ複数ページ）を返す"""
     days = [monday + datetime.timedelta(days=i) for i in range(7)]
     acts = {d: [] for d in days}
@@ -298,13 +302,22 @@ def render_week(monday, sunday, activities, comments, period_text, printed_at, o
     pages = []
     for ci, chunk in enumerate(chunks):
         p = Page()
-        title = f"行動記録　{fmt_date(monday, True)} 〜 {fmt_date(sunday, True)}"
+        # ページヘッダ（1行）：左「行動記録（開始日～終了日）」／中央「氏名」／右「出力日時」
+        title = f"行動記録（{monday:%Y/%m/%d}～{sunday:%Y/%m/%d}）"
         if len(chunks) > 1:
             title += f"（{ci + 1}/{len(chunks)}）"
-        p.text(MARGIN, 46, title, size=15)
-        sub = f"指定期間：{period_text}" + (f"　　氏名：{owner_name}" if owner_name else "")
-        p.text(MARGIN, 64, sub, size=9, color=(0.35, 0.35, 0.35))
-        p.text(table_right, 64, f"出力日時：{printed_at}", size=9, color=(0.35, 0.35, 0.35), align="right")
+        printed = f"出力日時：{printed_at}"
+        p.text(MARGIN, PAGE_HEADER_Y, title, size=PAGE_HEADER_FONT)
+        p.text(table_right, PAGE_HEADER_Y, printed, size=PAGE_HEADER_FONT, align="right")
+        if owner_name:
+            name = f"氏名：{owner_name}"
+            # 中央の氏名が左右の文字と重ならないよう、長い場合は文字を小さくする
+            side = max(text_width(title, PAGE_HEADER_FONT), text_width(printed, PAGE_HEADER_FONT))
+            room = 2 * (PAGE_W / 2 - MARGIN - side - 12)
+            size = PAGE_HEADER_FONT
+            while size > 6 and text_width(name, size) > room:
+                size -= 0.5
+            p.text(PAGE_W / 2, PAGE_HEADER_Y, name, size=size, align="center")
 
         # 見出し行
         p.fill_rect(MARGIN, TABLE_TOP, table_right - MARGIN, HEADER_H, 0.88)
@@ -368,13 +381,13 @@ def build_report(date_from, date_to, fetch_activities, fetch_comments=None, owne
     fetch_comments(date_from_str, date_to_str): {日付: 1日の感想} の dict"""
     weeks = week_ranges(date_from, date_to)
     period_text = f"{fmt_date(date_from, True)} 〜 {fmt_date(date_to, True)}"
-    printed_at = datetime.datetime.now().strftime("%Y/%m/%d %H:%M")
+    printed_at = datetime.datetime.now(JST).strftime("%Y/%m/%d %H:%M:%S")
     pages = []
     for monday, sunday in weeks:
         acts = fetch_activities(f"{(monday - datetime.timedelta(days=1)).isoformat()} {SLEEP_DAY_START_HOUR:02d}:00",
                                 f"{(sunday + datetime.timedelta(days=1)).isoformat()} 00:00")
         comments = fetch_comments(monday.isoformat(), sunday.isoformat()) if fetch_comments else {}
-        pages.extend(render_week(monday, sunday, acts, comments, period_text, printed_at, owner_name))
+        pages.extend(render_week(monday, sunday, acts, comments, printed_at, owner_name))
     # ページ番号
     for i, p in enumerate(pages, start=1):
         p.text(PAGE_W / 2, FOOTER_Y, f"{i} / {len(pages)}", size=8, color=(0.4, 0.4, 0.4), align="center")
