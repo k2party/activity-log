@@ -302,24 +302,22 @@ def render_week(monday, sunday, activities, comments, printed_at, owner_name="")
     pages = []
     for ci, chunk in enumerate(chunks):
         p = Page()
-        # ページヘッダ（1行）：左「行動記録（yyyy/m/d～m/d）」／中央「氏名」／右「出力日時」
+        # ページヘッダ（1行）：左「行動記録（yyyy/m/d～m/d）　氏名：ユーザー名」／右「出力日：yyyy/mm/dd HH:MM:SS」
         # 年をまたぐ週は終了日にも年を付ける
         end_text = f"{sunday.month}/{sunday.day}" if sunday.year == monday.year else f"{sunday.year}/{sunday.month}/{sunday.day}"
         title = f"行動記録（{monday.year}/{monday.month}/{monday.day}～{end_text}）"
         if len(chunks) > 1:
             title += f"（{ci + 1}/{len(chunks)}）"
-        printed = f"出力日時：{printed_at}"
-        p.text(MARGIN, PAGE_HEADER_Y, title, size=PAGE_HEADER_FONT)
-        p.text(table_right, PAGE_HEADER_Y, printed, size=PAGE_HEADER_FONT, align="right")
         if owner_name:
-            name = f"氏名：{owner_name}"
-            # 中央の氏名が左右の文字と重ならないよう、長い場合は文字を小さくする
-            side = max(text_width(title, PAGE_HEADER_FONT), text_width(printed, PAGE_HEADER_FONT))
-            room = 2 * (PAGE_W / 2 - MARGIN - side - 12)
-            size = PAGE_HEADER_FONT
-            while size > 6 and text_width(name, size) > room:
-                size -= 0.5
-            p.text(PAGE_W / 2, PAGE_HEADER_Y, name, size=size, align="center")
+            title += f"　氏名：{owner_name}"
+        printed = f"出力日：{printed_at}"
+        p.text(table_right, PAGE_HEADER_Y, printed, size=PAGE_HEADER_FONT, align="right")
+        # 氏名が長く右の出力日と重なる場合は左側の文字を小さくする
+        room = table_right - MARGIN - text_width(printed, PAGE_HEADER_FONT) - 12
+        size = PAGE_HEADER_FONT
+        while size > 6 and text_width(title, size) > room:
+            size -= 0.5
+        p.text(MARGIN, PAGE_HEADER_Y, title, size=size)
 
         # 見出し行
         p.fill_rect(MARGIN, TABLE_TOP, table_right - MARGIN, HEADER_H, 0.88)
