@@ -141,7 +141,8 @@ FOOTER_Y = PAGE_H - 18
 TABLE_BOTTOM = PAGE_H - 34
 HEADER_H = 20
 PAGE_HEADER_Y = 60                   # ページヘッダ（1行）のベースライン
-PAGE_HEADER_FONT = 12
+PAGE_HEADER_FONT = 12                # 氏名・出力日
+PAGE_TITLE_FONT = 15                 # 「行動記録（期間）」
 PAD = 5                              # セル内の左右余白
 MAX_FONT, MIN_FONT = 9.5, 5.0        # 1週が1ページに収まるよう、この範囲で文字サイズを自動調整
 ROW_RATIO = 2.0                      # 行の高さ = 文字サイズ × 2.0
@@ -308,16 +309,18 @@ def render_week(monday, sunday, activities, comments, printed_at, owner_name="")
         title = f"行動記録（{monday.year}/{monday.month}/{monday.day}～{end_text}）"
         if len(chunks) > 1:
             title += f"（{ci + 1}/{len(chunks)}）"
-        if owner_name:
-            title += f"　氏名：{owner_name}"
+        name = f"　氏名：{owner_name}" if owner_name else ""
         printed = f"出力日：{printed_at}"
         p.text(table_right, PAGE_HEADER_Y, printed, size=PAGE_HEADER_FONT, align="right")
-        # 氏名が長く右の出力日と重なる場合は左側の文字を小さくする
+        # 「行動記録（期間）」は大きく、氏名は通常の大きさで続ける。
+        # 氏名が長く右の出力日と重なる場合は左側の文字を同じ比率で小さくする
         room = table_right - MARGIN - text_width(printed, PAGE_HEADER_FONT) - 12
-        size = PAGE_HEADER_FONT
-        while size > 6 and text_width(title, size) > room:
-            size -= 0.5
-        p.text(MARGIN, PAGE_HEADER_Y, title, size=size)
+        title_size, name_size = PAGE_TITLE_FONT, PAGE_HEADER_FONT
+        while name_size > 6 and text_width(title, title_size) + text_width(name, name_size) > room:
+            title_size -= 0.5 * PAGE_TITLE_FONT / PAGE_HEADER_FONT
+            name_size -= 0.5
+        p.text(MARGIN, PAGE_HEADER_Y, title, size=title_size)
+        p.text(MARGIN + text_width(title, title_size), PAGE_HEADER_Y, name, size=name_size)
 
         # 見出し行
         p.fill_rect(MARGIN, TABLE_TOP, table_right - MARGIN, HEADER_H, 0.88)
