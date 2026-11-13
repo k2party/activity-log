@@ -302,8 +302,10 @@ def render_week(monday, sunday, activities, comments, printed_at, owner_name="")
     pages = []
     for ci, chunk in enumerate(chunks):
         p = Page()
-        # ページヘッダ（1行）：左「行動記録（開始日～終了日）」／中央「氏名」／右「出力日時」
-        title = f"行動記録（{monday:%Y/%m/%d}～{sunday:%Y/%m/%d}）"
+        # ページヘッダ（1行）：左「行動記録（yyyy/m/d～m/d）」／中央「氏名」／右「出力日時」
+        # 年をまたぐ週は終了日にも年を付ける
+        end_text = f"{sunday.month}/{sunday.day}" if sunday.year == monday.year else f"{sunday.year}/{sunday.month}/{sunday.day}"
+        title = f"行動記録（{monday.year}/{monday.month}/{monday.day}～{end_text}）"
         if len(chunks) > 1:
             title += f"（{ci + 1}/{len(chunks)}）"
         printed = f"出力日時：{printed_at}"
