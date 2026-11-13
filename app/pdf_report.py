@@ -18,6 +18,8 @@ ENCODING = "UniJIS-UCS2-HW-H"     # Unicode(UCS-2) → CID。英数字は半角�
 WEEK_JA = "月火水木金土日"
 CATEGORY_JA = {"sleep": "睡眠", "meal": "食事", "medicine": "服薬", "out": "外出", "other": "その他"}
 NO_END_CATEGORIES = {"medicine"}   # 時刻のみ表示する行動
+# 出力日時は日本時間で記載する（サーバー・コンテナのタイムゾーンに依存しない。日本は夏時間なし）
+JST = datetime.timezone(datetime.timedelta(hours=9), "JST")
 
 
 def text_width(s, size):
@@ -110,7 +112,7 @@ def build_pdf(pages, title):
         f"<< /Type /Pages /Kids [{' '.join(f'{i} 0 R' for i in page_ids)}] /Count {len(page_ids)} >>".encode()
     )
     objs[catalog - 1] = f"<< /Type /Catalog /Pages {pages_id} 0 R >>".encode()
-    now = datetime.datetime.now().strftime("D:%Y%m%d%H%M%S")
+    now = datetime.datetime.now(JST).strftime("D:%Y%m%d%H%M%S+09'00'")
     info = add(
         f"<< /Title <FEFF{title.encode('utf-16-be').hex().upper()}> "
         f"/Producer (activity-log) /CreationDate ({now}) >>".encode()
@@ -368,7 +370,7 @@ def build_report(date_from, date_to, fetch_activities, fetch_comments=None, owne
     fetch_comments(date_from_str, date_to_str): {日付: 1日の感想} の dict"""
     weeks = week_ranges(date_from, date_to)
     period_text = f"{fmt_date(date_from, True)} 〜 {fmt_date(date_to, True)}"
-    printed_at = datetime.datetime.now().strftime("%Y/%m/%d %H:%M")
+    printed_at = datetime.datetime.now(JST).strftime("%Y/%m/%d %H:%M")
     pages = []
     for monday, sunday in weeks:
         acts = fetch_activities(f"{(monday - datetime.timedelta(days=1)).isoformat()} {SLEEP_DAY_START_HOUR:02d}:00",
