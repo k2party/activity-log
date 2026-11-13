@@ -546,12 +546,7 @@
     pattern = next;
     if (prev === next) return updateForm();
     if (wasWaking || isWaking()) return resetForm();
-    // 睡眠の日付は「睡眠が属する日」（18:00 以降の就寝で日をまたぐなら翌日）なので、
-    // 睡眠⇔それ以外の切り替えでは開始の日時が変わらないよう日付を付け替える
-    const date = $('entry-date').value, t = parseTime($('start').value);
-    if (date && t && (prev === 'sleep') !== (next === 'sleep') && sleepCrosses(t, parseTime($('end').value))) {
-      $('entry-date').value = shiftDate(date, next === 'sleep' ? 1 : -1);
-    }
+    // 睡眠⇔それ以外の切り替えでも日付・開始時刻は入力値のまま（付け替えない）
     updateForm();
   }
   $('note-chips').onclick = (ev) => {
