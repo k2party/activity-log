@@ -946,7 +946,8 @@
 
   // ---- PDF帳票（表示中の期間を含む月〜日の週ごと・A4横・1週1ページ） ----
   $('pdf-btn').onclick = () => {
-    window.open(`/api/report.pdf?from=${from}&to=${to}`, '_blank');
+    // 毎回異なる URL にして、ブラウザ・ダウンロード管理が過去の PDF を再利用しないようにする（主に Android 対策）
+    window.open(`/api/report.pdf?from=${from}&to=${to}&_=${Date.now()}`, '_blank');
   };
 
   // ---- CSV出力（表示中の期間に属する記録。日付は記録が属する日＝一覧・帳票と同じ基準日） ----
@@ -962,7 +963,12 @@
     const csv = '﻿' + out.map(r => r.map(q).join(',')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = from === to ? `行動記録_${from}.csv` : `行動記録_${from}_${to}.csv`;
+    // 出力日時（日本時間・端末のタイムゾーンに依存しない）を付けて毎回別名にする
+    // （Android 等で同名の古いダウンロード済みファイルが開かれないように。PDF と同じ方針）
+    const j = new Date(Date.now() + 9 * 3600000);
+    const stamp = `${j.getUTCFullYear()}${pad(j.getUTCMonth() + 1)}${pad(j.getUTCDate())}`
+      + `-${pad(j.getUTCHours())}${pad(j.getUTCMinutes())}${pad(j.getUTCSeconds())}`;
+    a.download = `行動記録_${from === to ? from : `${from}_${to}`}_${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   };

@@ -651,11 +651,16 @@ class Handler(BaseHTTPRequestHandler):
                 return {r["date"]: r["comment"] for r in rows}
 
             body = pdf_report.build_report(d1, d2, fetch, fetch_comments, owner_name=user["name"])
-        filename = f"行動記録_{d1.isoformat()}_{d2.isoformat()}.pdf"
-        self.send_body(200, body, "application/pdf", [(
-            "Content-Disposition",
-            f"inline; filename=\"activity_log_{d1.isoformat()}_{d2.isoformat()}.pdf\"; filename*=UTF-8''{quote(filename)}",
-        )])
+        # ファイル名に生成日時を付けて毎回別名にする（Android 等では PDF がダウンロード扱いになり、
+        # 同名だと過去にダウンロードした古いファイルが開かれることがあるため）
+        stamp = datetime.datetime.now(pdf_report.JST).strftime("%Y%m%d-%H%M%S")  # 帳票の出力日と同じ日本時間
+        base = f"{d1.isoformat()}_{d2.isoformat()}_{stamp}.pdf"
+        self.send_body(200, body, "application/pdf", [
+            ("Content-Disposition",
+             f"inline; filename=\"activity_log_{base}\"; filename*=UTF-8''{quote('行動記録_' + base)}"),
+            ("Pragma", "no-cache"),
+            ("Expires", "0"),
+        ])
 
     def open_sleep(self):
         """起床が未入力の最新の睡眠（無ければ null）"""
