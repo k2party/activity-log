@@ -126,13 +126,14 @@
   tr.editing input[type=date], tr.editing select { width: auto; }
   tr.editing .edit-grid { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .day-note { margin-top: 8px; padding: 8px 10px; background: #fafafc; border: 1px solid var(--border); border-radius: 8px; }
-  .day-note .note-head { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--sub); margin-bottom: 4px; }
+  .day-note .note-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: .85rem; color: var(--sub); margin-bottom: 4px; }
   .day-note .note-head .spacer { flex: 1; }
   .day-note .note-head button { padding: 2px 10px; font-size: .8rem; }
   .day-note .note-text { white-space: pre-wrap; word-break: break-word; }
   .day-note .note-head button.ai { color: #6b3fa0; border-color: #c9b3e6; }
   .day-note .note-head button.ai:disabled { opacity: .6; }
   .day-note .note-error { font-size: .85rem; color: var(--danger); background: #fdecec; border: 1px solid #f3c2c2; border-radius: 6px; padding: 6px 8px; margin-top: 4px; }
+  .day-note .note-count { text-align: right; font-size: .8rem; color: var(--sub); }   /* 文字数は入力欄の下（スマホ幅でボタン行が崩れないように） */
   .day-note textarea { font: inherit; width: 100%; min-height: 4.5em; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
   td.empty-row { color: var(--sub); text-align: center; }
   .empty { color: var(--sub); text-align: center; padding: 24px 0; }
@@ -402,7 +403,6 @@
   let mode = 'day';            // 'day' | 'range'
   let from = today(), to = today();
   let editingId = null;
-  let editFocusEnd = false;    // 「終了」ボタンから編集を開いた
   let fetched = [];            // 表示期間にかかる行動記録（前日から続く睡眠なども含む）
   let notes = new Map();       // 1日の感想（日付 → 本文）
   const noteDrafts = new Map(); // 編集中の感想（日付 → 入力中の本文）。再描画しても消えないよう保持
@@ -779,15 +779,16 @@
     const editing = noteEditing.has(date) || (mode === 'day' && !saved);
     if (editing) {
       const text = noteDrafts.get(date) ?? saved;
+      // 「元に戻す」を表示している間（要約済み）は「AI要約」を出さない
       box.innerHTML = `
         <div class="note-head">1日の感想<span class="spacer"></span>
-          <span data-count>${text.length}/${MAX_COMMENT}</span>
           ${noteUndo.has(date) ? '<button type="button" data-note-act="undo">元に戻す</button>' : ''}
-          ${summarizeEnabled ? `<button type="button" class="ai" data-note-act="summarize" title="入力中の感想を Google Gemini で要約します（${SUMMARIZE_MIN}文字以上）"${noteSummarizing.has(date) ? ' disabled' : ''}>${noteSummarizing.has(date) ? '要約中…' : 'AI要約'}</button>` : ''}
+          ${summarizeEnabled && !noteUndo.has(date) ? `<button type="button" class="ai" data-note-act="summarize" title="入力中の感想を Google Gemini で要約します（${SUMMARIZE_MIN}文字以上）"${noteSummarizing.has(date) ? ' disabled' : ''}>${noteSummarizing.has(date) ? '要約中…' : 'AI要約'}</button>` : ''}
           ${saved || mode === 'range' ? '<button type="button" data-note-act="cancel">取消</button>' : ''}
           <button type="button" class="primary" data-note-act="save">保存</button>
         </div>
         <textarea maxlength="${MAX_COMMENT}" placeholder="今日1日の感想を入力"></textarea>
+        <div class="note-count" data-count>${text.length}/${MAX_COMMENT}</div>
         ${noteErrors.has(date) ? `<div class="note-error" role="alert">エラー: ${esc(noteErrors.get(date))}</div>` : ''}`;
       box.querySelector('textarea').value = text;
     } else {
@@ -820,7 +821,6 @@
       <td class="dur">${durCell(r)}</td>
       <td class="text">${badge(r.category)}${esc(r.note)}</td>
       <td class="ops">
-        ${r.endAbs == null && !PATTERNS[r.category].noEnd ? `<button data-act="finish">${r.category === 'sleep' ? '起床' : '終了'}</button>` : ''}
         <button data-act="edit">編集</button><button data-act="del" class="danger">削除</button>
       </td>`;
     return tr;
@@ -865,7 +865,6 @@
     // 終了は時刻のみ（開始より後で最初のその時刻と解釈）。24時間以上の記録は日時で表示
     const hmOf = (a) => fmtHM(((a % DAY_MIN) + DAY_MIN) % DAY_MIN);
     if (r.endAbs != null) f('end').value = r.endAbs - r.startAbs < DAY_MIN ? hmOf(r.endAbs) : r.end_time;
-    else if (editFocusEnd) { const n = nowAbs(); if (n > r.startAbs && n - r.startAbs < DAY_MIN) f('end').value = hmOf(n); }
     f('note').value = r.note;
     const sync = () => {
       const cat = f('category').value;
@@ -892,7 +891,6 @@
     f('end').addEventListener('input', syncSleepDate);
     f('start').addEventListener('input', syncSleepDate);
     syncSleepDate();
-    if (editFocusEnd) setTimeout(() => f('end').focus());
     return tr;
   }
 
@@ -905,8 +903,7 @@
     const a = fetched.find(x => x.id === id);
     try {
       switch (btn.dataset.act) {
-        case 'edit': editingId = id; editFocusEnd = false; render(); break;
-        case 'finish': editingId = id; editFocusEnd = true; render(); break;   // 終了時刻を入力
+        case 'edit': editingId = id; render(); break;
         case 'cancel': editingId = null; render(); break;
         case 'save': {
           const f = (name) => tr.querySelector(`[data-f=${name}]`).value.trim();
