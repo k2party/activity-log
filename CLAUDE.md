@@ -14,7 +14,7 @@ UI 文言・エラーメッセージ・コメント・コミットメッセー�
 python3 app/server.py                       # http://127.0.0.1:8000/ （DB: data/activity_log.db）
 python3 app/server.py --port 8001 --db /tmp/test.db   # 使い捨て DB で動作確認
 docker compose up -d --build                # コンテナで起動（127.0.0.1:8000）
-podman build -t localhost/activity-log-app:latest .   # Podman Quadlet 用イメージ
+podman/build.sh && podman/deploy.sh   # Podman Quadlet でビルド・配置・起動（暗号キーは未作成時のみ生成）
 ```
 
 テスト・リンター・ビルドは存在しない。動作確認はサーバーを起動してブラウザ / curl で行う。

@@ -77,20 +77,20 @@ docker compose up -d --build
 | `podman/diary.pod` | Pod `diary`。`127.0.0.1:8000` のみに公開 |
 | `podman/diary-app.container` | アプリ本体（イメージ `localhost/activity-log-app:latest`、非 root・ヘルスチェック・自動再起動） |
 | `podman/diary-db_data.volume` | DB 永続化用ボリューム `diary-db_data`（コンテナ内 `/data`） |
+| `podman/build.sh` | イメージ `localhost/activity-log-app:latest` をビルドする |
+| `podman/deploy.sh` | 暗号キー `GEMINI_KEY_SECRET` を Podman secret `diary-gemini-key-secret` として生成し（作成済みなら更新しない）、Quadlet 定義を `~/.config/containers/systemd/` にコピーして `diary-pod.service` を（再）起動する |
 
 rootless の場合:
 
 ```bash
-podman build -t localhost/activity-log-app:latest .
-mkdir -p ~/.config/containers/systemd
-cp podman/diary.pod podman/diary-app.container podman/diary-db_data.volume ~/.config/containers/systemd/
-systemctl --user daemon-reload
-systemctl --user start diary-pod.service
+podman/build.sh                  # イメージをビルド
+podman/deploy.sh                 # 暗号キー生成（初回のみ）・配置・起動
 loginctl enable-linger "$USER"   # ログアウト後も動かし続ける場合
 ```
 
-rootful の場合は `/etc/containers/systemd/` に配置し、`systemctl` を `--user` なしで実行します。
-イメージを更新したときは再ビルド後に `systemctl --user restart diary-pod.service` を実行してください。
+アプリを更新したときは `podman/build.sh && podman/deploy.sh` を実行してください。
+暗号キーを作り直す（`podman secret rm diary-gemini-key-secret` してから deploy）と、登録済みの Gemini API キーは復号できなくなり各ユーザーの再登録が必要になります。
+rootful の場合はスクリプトを使わず、Quadlet 定義を `/etc/containers/systemd/` に配置して `systemctl` を `--user` なしで実行します。
 
 ## 初回ログイン
 
@@ -173,7 +173,7 @@ app/                      アプリ本体
   login.html              ログイン画面
   users.html              ユーザ管理画面
 data/                     ローカル実行用の DB 置き場（中身は git 管理外）
-podman/                   Podman Quadlet 定義（.pod / .container / .volume）
+podman/                   Podman Quadlet 定義（.pod / .container / .volume）とビルド・配置スクリプト
 Dockerfile                コンテナイメージ（app/ の中身を /app にコピー）
 compose.yaml              Docker Compose 定義
 ```

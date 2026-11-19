@@ -1,5 +1,5 @@
 # 行動記録メモ アプリ（Podman Quadlet）
-# 事前にイメージをビルドしておく:  podman build -t localhost/activity-log-app:latest .
+# ビルド: podman/build.sh  配置・起動: podman/deploy.sh
 [Unit]
 Description=行動記録メモ アプリ
 
@@ -13,7 +13,8 @@ Volume=diary-db_data.volume:/data
 User=10001
 # 感想の AI 要約に使う Gemini のモデルを変える場合（API キーは各ユーザーが画面で登録する）
 #Environment=GEMINI_MODEL=gemini-flash-latest
-# Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。secret を作成してから次の Secret= 行を有効にする:
+# Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。podman/deploy.sh が secret を
+# （無ければ）生成し、コピー時に次の Secret= 行を有効にする。手動で配置する場合は secret を作成してコメントを外す:
 #   python3 -c "import secrets; print(secrets.token_urlsafe(32), end='')" | podman secret create diary-gemini-key-secret -
 #Secret=diary-gemini-key-secret,type=env,target=GEMINI_KEY_SECRET
 # podman build（OCI形式）では Dockerfile の HEALTHCHECK が引き継がれないため、ここで定義する
