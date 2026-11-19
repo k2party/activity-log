@@ -1,8 +1,8 @@
 # ローカル LLM（Ollama）（Podman Quadlet）
-# 配置・起動: podman/deploy.sh --llm（一度配置すれば、以降の podman/deploy.sh でも更新される）
+# 配置・起動: podman/deploy.sh --llm（deploy のたびに --llm が必要。省略すると停止して定義を削除する。ボリュームは残す）
 # 既定のモデル（gemma3:1b。podman/deploy.sh の LLM_MODEL）は podman/deploy.sh が起動後に自動で取得する。
 # 別のモデルを手動で取得する場合: podman exec diary-llm ollama pull <モデル名>
-# アプリの AI 要約に使うには diary-app.container の Environment=DIARY_LLM_URL=http://127.0.0.1:11434 を有効にする
+# podman/deploy.sh --llm で配置すると、アプリ（diary-app）の AI 要約はこのコンテナを使う（DIARY_LLM_URL=http://127.0.0.1:11434）
 # （Ollama には認証が無いため、Pod の外には公開しない）
 [Unit]
 Description=行動記録メモ ローカルLLM（Ollama）

@@ -311,7 +311,7 @@
   const MAX_COMMENT = 1000;   // 1日の感想の最大文字数
   const SUMMARIZE_MIN = 50;   // AI 要約できる最小文字数（サーバーの summarize.MIN_LENGTH と合わせる）
   let summarizeEnabled = false; // AI 要約を使えるか（/api/me の summarize_enabled。ローカル LLM なら常に可、Gemini はキー設定済みのとき）
-  let summarizerName = 'Google Gemini'; // 要約に使う AI の表示名（/api/me の summarizer が local ならローカル LLM）
+  let summarizerName = 'Google Gemini'; // 要約に使う AI の表示名（/api/me の summarizer が local ならモデル名 summarizer_model）
   let geminiKeyHint = '';       // 設定済みキーの末尾4文字
 
   // ---- API ----
@@ -1126,7 +1126,7 @@
     $('admin-manual-link').hidden = !me.is_admin;
     const local = me.summarizer === 'local';
     summarizeEnabled = !!me.summarize_enabled;
-    summarizerName = local ? 'ローカル LLM' : 'Google Gemini';
+    summarizerName = local ? (me.summarizer_model || 'ローカル LLM') : 'Google Gemini';
     geminiKeyHint = me.gemini_key_hint || '';
     // ローカル LLM のときは Gemini の API キーを使わないので「Gemini設定」を出さない
     $('gemini-btn').hidden = local;
