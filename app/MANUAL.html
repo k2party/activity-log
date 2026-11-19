@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行動記録メモ 利用マニュアル</title>
+<!-- 一般ユーザー向けの利用マニュアル。/manual.html でダウンロードさせる（ログイン不要）。
+     ダウンロードしたファイル単体でも表示できるよう、外部ファイルは読み込まない -->
+<style>
+  :root { --bg: #f5f6f8; --card: #fff; --text: #222; --sub: #666; --accent: #2f6fde; --border: #e2e4e8; --head: #f0f3f8; --code: #eef1f5; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181c; --card: #1f2227; --text: #e6e6e6; --sub: #a0a4ab; --accent: #7aa7ff; --border: #343841; --head: #282c33; --code: #2b2f36; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); line-height: 1.75;
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 8px 0 12px; }
+  h2 { font-size: 1.25rem; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); }
+  h3 { font-size: 1.05rem; margin: 20px 0 8px; }
+  section, nav.toc { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 16px 0; }
+  .lead { color: var(--sub); }
+  a { color: var(--accent); }
+  code { background: var(--code); border-radius: 4px; padding: 1px 5px; font-size: .92em;
+         font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+  ul, ol { padding-left: 1.5em; }
+  li { margin: 4px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: .95rem; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--head); white-space: nowrap; }
+  .top-link { display: block; text-align: right; font-size: .85rem; margin-top: 8px; }
+  @media print {
+    :root { --bg: #fff; --card: #fff; --text: #000; --sub: #333; --accent: #1a4fb0; --border: #999; --head: #eee; --code: #f2f2f2; }
+    main { max-width: none; padding: 0; }
+    section, nav.toc { border: 0; padding: 0; margin: 0 0 18px; }
+    section { break-before: page; }
+    nav.toc { break-before: auto; }
+    table { display: table; }
+    tr, h2, h3 { break-inside: avoid; }
+    .top-link { display: none; }
+  }
+</style>
+</head>
+<body>
+<main id="top">
+<h1>行動記録メモ 利用マニュアル</h1>
+<p class="lead">行動記録メモは、睡眠・食事・服薬・外出などの毎日の行動と「1日の感想」を記録し、1週間ごとの帳票（PDF）や CSV に出力できる Web アプリです。パソコンでもスマートフォンでも、ブラウザから利用できます。</p>
+<nav class="toc"><h2>目次</h2>
+<ol>
+<li><a href="#s1">ログイン・ログアウト</a></li>
+<li><a href="#s2">画面の見かた</a></li>
+<li><a href="#s3">行動を記録する</a></li>
+<li><a href="#s4">睡眠と起床を記録する</a></li>
+<li><a href="#s5">記録を見る・直す・消す</a></li>
+<li><a href="#s6">1日の感想を書く</a></li>
+<li><a href="#s7">感想を AI で要約する（Gemini設定）</a></li>
+<li><a href="#s8">帳票（PDF）・CSV を出力する</a></li>
+<li><a href="#s9">パスワードを変更する</a></li>
+<li><a href="#s10">困ったときは</a></li>
+</ol></nav>
+<section>
+<h2 id="s1">1. ログイン・ログアウト</h2>
+<h3>ログイン</h3>
+<ol>
+<li>管理者から伝えられたアドレスをブラウザで開きます。</li>
+<li><strong>ユーザID</strong> と <strong>パスワード</strong> を入力し、ログインします。</li>
+</ol>
+<ul>
+<li>ユーザID・パスワードは管理者が登録します。分からない場合は管理者に問い合わせてください。</li>
+<li>ログインの失敗が続くと、しばらくの間（最大15分）ログインできなくなります。時間をおいてからもう一度お試しください。</li>
+<li>最後に使ってから <strong>14日間</strong> はログインしたままになります。14日以上使わないと、自動でログアウトされます。</li>
+</ul>
+<h3>ログアウト</h3>
+<p>画面右上の <strong>「ログアウト」</strong> を押します。共用のパソコンを使ったときは、必ずログアウトしてください。</p>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s2">2. 画面の見かた</h2>
+<p>ログインすると「行動記録」の画面が開きます。</p>
+<table>
+<thead>
+<tr><th>場所</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>上部（ヘッダ）</td><td>氏名（ユーザID）、「Gemini設定」「パスワード変更」「マニュアル」「ログアウト」</td></tr>
+<tr><td>入力欄</td><td>行動の種類ボタン、日付・時刻・メモの入力、「〇〇を記録」ボタン</td></tr>
+<tr><td>一覧</td><td>「1日」「期間」の切り替え、日付の指定、「PDF出力」「CSV出力」、記録の一覧、1日の感想</td></tr>
+</tbody></table>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s3">3. 行動を記録する</h2>
+<h3>手順</h3>
+<ol>
+<li>種類のボタンを押します。<table>
+<thead>
+<tr><th>ボタン</th><th>記録する内容</th></tr></thead>
+<tbody>
+<tr><td>🌙 睡眠</td><td>就寝時刻・起床時刻（<a href="#s4">4章</a>を参照）</td></tr>
+<tr><td>🍚 食事</td><td>開始時刻・終了時刻・メモ（朝食・昼食など）</td></tr>
+<tr><td>💊 服薬</td><td>服薬した時刻・メモ（朝食後・就寝前など）。終了時刻はありません</td></tr>
+<tr><td>🚶 外出</td><td>出発時刻・帰宅時刻・行先</td></tr>
+<tr><td>📝 その他</td><td>開始時刻・終了時刻・内容（家事・入浴など）</td></tr>
+</tbody></table></li>
+<li><strong>日付</strong> を確認します（最初は今日の日付が入っています）。</li>
+<li><strong>開始時刻</strong> を入力します。「今」ボタンを押すと現在の時刻が入ります。</li>
+<li>終わっていれば <strong>終了時刻</strong> を入力します。まだ終わっていなければ空欄のままで構いません（あとから入力できます）。</li>
+<li>必要なら <strong>メモ</strong>（行先・内容）を入力します（20文字まで）。<ul>
+<li>食事・服薬は「朝食」「朝食後」などのボタンを押すと、そのまま入力されます。</li>
+<li>以前に入力したメモは、入力欄に候補として表示されます。</li>
+</ul></li>
+<li><strong>「〇〇を記録」</strong> ボタンを押します。</li>
+</ol>
+<h3>時刻の入力方法</h3>
+<p>時刻はいろいろな書き方で入力できます。入力欄から離れると「09:30」の形にそろえられます。</p>
+<table>
+<thead>
+<tr><th>入力例</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>9:30</code>、<code>0930</code>、<code>930</code></td><td>9時30分</td></tr>
+<tr><td><code>9</code></td><td>9時00分</td></tr>
+<tr><td><code>９：３０</code>、<code>9時30分</code></td><td>全角や「時」「分」も使えます</td></tr>
+<tr><td><code>25:00</code></td><td>翌日の1時00分（24時以降は翌日として扱います。47:59 まで）</td></tr>
+</tbody></table>
+<ul>
+<li>終了時刻が開始時刻より前の時刻なら、<strong>翌日</strong> の時刻として扱います（例：開始 23:30・終了 1:00 → 翌日 1:00）。</li>
+<li>入力欄の下に「→ 翌01:00（1時間30分）」のように、どう扱われるかが表示されるので確認してください。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s4">4. 睡眠と起床を記録する</h2>
+<h3>寝るとき</h3>
+<ol>
+<li><strong>🌙 睡眠</strong> を押します。</li>
+<li>就寝時刻（最初は現在時刻）を確認し、<strong>「就寝を記録」</strong> を押します。</li>
+</ol>
+<p>記録すると、入力欄に「😴 睡眠中：（就寝日時）〜（経過時間）」と表示されます。</p>
+<h3>起きたとき</h3>
+<ol>
+<li><strong>🌙 睡眠</strong> を押します（「起床を記録」に変わります）。</li>
+<li>起床時刻（最初は現在時刻）を確認し、<strong>「起床を記録」</strong> を押します。</li>
+</ol>
+<p>一覧の睡眠の行にある <strong>「起床」</strong> ボタンからも、起床時刻を入力できます。</p>
+<h3>睡眠を記録する日</h3>
+<p>夜に寝て朝に起きた睡眠は、<strong>起きた日（翌日）の睡眠</strong> として記録されます。</p>
+<table>
+<thead>
+<tr><th>例</th><th>記録される日</th></tr></thead>
+<tbody>
+<tr><td>11/2 の 23:30 に寝て、11/3 の 7:00 に起きた</td><td>11/3</td></tr>
+<tr><td>11/3 の 1:00 に寝た</td><td>11/3</td></tr>
+<tr><td>11/3 の 13:00 から昼寝した</td><td>11/3</td></tr>
+<tr><td>11/3 の 19:00 から 21:00 まで仮眠した</td><td>11/3（24時前に起きた場合は寝た日）</td></tr>
+</tbody></table>
+<ul>
+<li>18:00 以降に寝るときは、日付が自動で翌日になります。</li>
+<li>あとから就寝を入力するときは、<strong>日付に「起きた日」</strong> を入れてください（例：日付 11/3・就寝 23:30 → 11/2 の 23:30 に寝たことになります）。</li>
+<li>一覧・帳票・CSV はすべてこの日付で表示されます。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s5">5. 記録を見る・直す・消す</h2>
+<h3>表示する日・期間を選ぶ</h3>
+<table>
+<thead>
+<tr><th>操作</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>「1日」</td><td>1日分を表示します（記録が無い日も表示され、感想を書けます）</td></tr>
+<tr><td>「期間」</td><td>開始日〜終了日を表示します（記録か感想がある日だけ表示されます。最大400日）</td></tr>
+<tr><td>◀ / ▶</td><td>前・次の日（期間）に移動します</td></tr>
+<tr><td>今日・昨日・今週・過去7日・今月・先月</td><td>よく使う日・期間をすぐに表示します（今週は月曜〜日曜）</td></tr>
+</tbody></table>
+<h3>一覧の見かた</h3>
+<ul>
+<li>日ごとに、開始・終了・時間・行動（種類とメモ）が並び、右上に合計時間が表示されます。</li>
+<li>時刻はその日を基準に「前日 23:30」「翌07:00」のように表示されます。</li>
+<li>別の日に記録された行動がその日にかかっている場合（夜から続く外出など）は、薄い色で「（m/d に計上）」と表示されます。この行は合計に含まれません。</li>
+<li>睡眠中の行は、終了欄に「睡眠中」、時間欄に経過時間が表示されます。</li>
+</ul>
+<h3>終了時刻を入れる</h3>
+<p>終了時刻が未入力の行には <strong>「終了」</strong>（睡眠は <strong>「起床」</strong>）ボタンがあります。押すと終了時刻を入力できます。</p>
+<h3>直す</h3>
+<ol>
+<li>行の <strong>「編集」</strong> を押します。</li>
+<li>種類・日付・開始時刻・終了時刻・メモを直します。</li>
+<li><strong>「保存」</strong> を押します（やめるときは「取消」）。</li>
+</ol>
+<h3>消す</h3>
+<p>行の <strong>「削除」</strong> を押し、確認のメッセージで OK を押します。<strong>削除した記録は元に戻せません。</strong></p>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s6">6. 1日の感想を書く</h2>
+<p>一覧の各日の下に「1日の感想」欄があります。1日に1件、1000文字まで書けます。</p>
+<ol>
+<li>「1日」表示で感想が未入力の日は、最初から入力欄が表示されます。それ以外の日は <strong>「入力」</strong>（書いてある日は <strong>「編集」</strong>）を押します。</li>
+<li>感想を入力し、<strong>「保存」</strong> を押します。</li>
+</ol>
+<ul>
+<li>入力欄を空にして保存すると、その日の感想は削除されます。</li>
+<li>書いた感想は帳票（PDF）の「1日の感想」の欄に印刷されます。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s7">7. 感想を AI で要約する（Gemini設定）</h2>
+<p>長く書いた感想を、Google の AI（Gemini）で短くまとめることができます。この機能を使うには、<strong>自分の Gemini API キー</strong> を登録する必要があります。キーを登録していないと「AI要約」ボタンは表示されません。</p>
+<h3>API キーを登録する</h3>
+<ol>
+<li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> で API キーを取得します（Google アカウントが必要です）。</li>
+<li>画面上部の <strong>「Gemini設定」</strong> を押します。</li>
+<li>API キーを貼り付けて <strong>「保存」</strong> を押します。</li>
+</ol>
+<ul>
+<li>登録したキーはあなたの要約にだけ使われ、ほかの人には使われません。</li>
+<li>キーは暗号化して保存されます。画面には末尾4文字だけが表示されます（管理者もキーの中身は見られません）。</li>
+<li>キーを消すときは、「Gemini設定」で <strong>「キーを削除」</strong> を押します。</li>
+<li>「サーバーに暗号化用の秘密鍵が設定されていない」と表示されて登録できない場合は、管理者に連絡してください。</li>
+</ul>
+<h3>要約する</h3>
+<ol>
+<li>感想を <strong>50文字以上</strong> 入力します。</li>
+<li><strong>「AI要約」</strong> を押します。しばらくすると、入力欄の文章が要約に置き換わります。</li>
+<li>内容を確認し、よければ <strong>「保存」</strong> を押します（要約しただけでは保存されません）。</li>
+</ol>
+<ul>
+<li>元の文章に戻したいときは <strong>「元に戻す」</strong> を押します。</li>
+<li>要約の回数は、10分間に20回までです。</li>
+<li><strong>要約する感想の文章は Google に送信されます。</strong> 送りたくない内容は要約しないでください。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s8">8. 帳票（PDF）・CSV を出力する</h2>
+<ol>
+<li>「1日」または「期間」で、出力したい日・期間を表示します。</li>
+<li>ボタンを押します。</li>
+</ol>
+<table>
+<thead>
+<tr><th>ボタン</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td><strong>PDF出力</strong></td><td>表示中の期間を含む週（月曜〜日曜）ごとに、A4 横1ページの帳票を別のタブで表示します。印刷や保存はブラウザ（PDF ビューア）の機能で行います</td></tr>
+<tr><td><strong>CSV出力</strong></td><td>表示中の期間の記録を CSV ファイルで保存します（Excel などで開けます）</td></tr>
+</tbody></table>
+<h3>帳票（PDF）の内容</h3>
+<ul>
+<li>上部に「行動記録（期間）　氏名」と出力日時が入ります。</li>
+<li>列は「日付 / 時刻（FROM〜TO）/ 行動 / メモ / 1日の感想 / 服薬時刻」です。</li>
+<li>睡眠のメモ欄には睡眠時間（例：7時間30分）が入ります。</li>
+<li>服薬は「服薬時刻」の欄にまとめて表示されます。</li>
+</ul>
+<h3>CSV の内容</h3>
+<ul>
+<li>列は「日付 / 種類 / 開始日時 / 終了日時 / メモ」です（感想は含みません）。</li>
+<li>睡眠のメモ欄には睡眠時間が入ります。</li>
+</ul>
+<h3>ファイル名</h3>
+<p>出力するたびに日時の付いた別の名前になります（例：<code>行動記録_2026-11-09_2026-11-15_20261115-093824.pdf</code>）。</p>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s9">9. パスワードを変更する</h2>
+<ol>
+<li>画面上部の <strong>「パスワード変更」</strong> を押します。</li>
+<li>現在のパスワードと、新しいパスワード（8〜128文字）を2回入力します。</li>
+<li><strong>「変更する」</strong> を押します。</li>
+</ol>
+<ul>
+<li>パスワードを変更すると、ほかの端末（スマートフォンなど）でのログインは解除されます。もう一度ログインしてください。</li>
+<li>パスワードを忘れた場合は、管理者に再設定を依頼してください。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+<section>
+<h2 id="s10">10. 困ったときは</h2>
+<table>
+<thead>
+<tr><th>困りごと</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td>ログインできない</td><td>ユーザID・パスワードを確認してください。失敗が続いた場合は15分ほど待ってからお試しください。忘れた場合は管理者に連絡してください</td></tr>
+<tr><td>急にログイン画面に戻った</td><td>14日間使わなかったか、パスワードが変更されました。もう一度ログインしてください</td></tr>
+<tr><td>時刻を入力するとエラーになる</td><td>00:00〜47:59 の範囲で入力してください。終了時刻は開始時刻より後にしてください</td></tr>
+<tr><td>睡眠が思った日に表示されない</td><td>夜に寝た睡眠は起きた日に記録されます（<a href="#s4">4章</a>）。日付を直すときは「編集」で日付に起きた日を入れてください</td></tr>
+<tr><td>24時間を超える記録を入れたい</td><td>いったん記録してから「編集」で、終了欄に日付と時刻を <code>2026-11-20 08:00</code> の形で入力してください</td></tr>
+<tr><td>「AI要約」ボタンが無い</td><td>Gemini の API キーが登録されていません（<a href="#s7">7章</a>）</td></tr>
+<tr><td>AI 要約でエラーになる</td><td>API キーが正しいか「Gemini設定」で確認してください。混み合っている場合は、しばらくしてからお試しください</td></tr>
+<tr><td>PDF の文字が表示されない</td><td>日本語フォントに対応した PDF ビューア（Chrome、Edge、Acrobat Reader など）で開いてください</td></tr>
+<tr><td>古い PDF / CSV が開く</td><td>出力のたびにファイル名が変わります。最新の日時のファイルを開いてください</td></tr>
+</tbody></table>
+
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+</main>
+</body>
+</html>

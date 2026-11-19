@@ -3,7 +3,7 @@
 起動:  python3 app/server.py [--db DBファイルのパス] [--host 127.0.0.1] [--port 8000]
   --db 省略時はプロジェクト直下の data/activity_log.db（環境変数 DB_PATH があればそれ）
   例:  python3 app/server.py --db /var/lib/activity-log/activity_log.db
-  Docker では --db /data/activity_log.db で起動する（Dockerfile の CMD）
+  Docker では --db /data/activity_log.db で起動する（docker/Dockerfile の CMD）
 
 環境変数でも設定可能（コマンドライン引数が優先）:
   HOST, PORT, DB_PATH
@@ -31,6 +31,8 @@ import summarize
 
 BASE_DIR = Path(__file__).resolve().parent
 PAGES = {name: BASE_DIR / f"{name}.html" for name in ("index", "login", "users")}
+MANUAL_PATH = BASE_DIR / "MANUAL.html"   # 一般ユーザー向けの利用マニュアル（/manual.html でダウンロード）
+MANUAL_ADMIN_PATH = BASE_DIR / "MANUAL_ADMIN.html"   # 管理者向けマニュアル（/manual_admin.html。管理者のみ）
 DB_PATH = Path(os.environ.get("DB_PATH") or BASE_DIR.parent / "data" / "activity_log.db")
 TRUST_PROXY = os.environ.get("TRUST_PROXY") == "1"
 COOKIE_SECURE = os.environ.get("COOKIE_SECURE") == "1"
@@ -539,6 +541,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_page("users") if user["is_admin"] else self.redirect("/")
         if path == "/healthz":
             return self.handle_errors(self.healthz)
+        if path == "/manual.html":
+            return self.manual()
+        if path == "/manual_admin.html":
+            user = self.current_user()
+            if not user:
+                return self.redirect("/login")
+            return self.manual_admin() if user["is_admin"] else self.redirect("/")
         # ---- API ----
         routes = {
             "/api/me": self.me,
@@ -587,6 +596,20 @@ class Handler(BaseHTTPRequestHandler):
         if m := re.fullmatch(r"/api/users/([^/]+)", path):
             return self.handle_errors(lambda: (self.check_csrf(), self.delete_user(unquote(m.group(1)))))
         self.send_json(404, {"error": "見つかりません"})
+
+    def manual(self):
+        """利用マニュアル（HTML）をダウンロードさせる。ログイン不要（ログインできない人も読めるように）"""
+        self.send_body(200, MANUAL_PATH.read_bytes(), "text/html; charset=utf-8", [
+            ("Content-Disposition",
+             f"attachment; filename=\"activity_log_manual.html\"; filename*=UTF-8''{quote('行動記録メモ_利用マニュアル.html')}"),
+        ])
+
+    def manual_admin(self):
+        """管理者向けマニュアルをダウンロードさせる。初期パスワードを含むため管理者のみ"""
+        self.send_body(200, MANUAL_ADMIN_PATH.read_bytes(), "text/html; charset=utf-8", [
+            ("Content-Disposition",
+             f"attachment; filename=\"activity_log_manual_admin.html\"; filename*=UTF-8''{quote('行動記録メモ_管理者マニュアル.html')}"),
+        ])
 
     def healthz(self):
         with connect() as conn:

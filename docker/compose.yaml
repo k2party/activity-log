@@ -1,0 +1,26 @@
+# 行動記録メモ（Docker Compose）。ビルド: docker/build.sh  起動: docker compose -f docker/compose.yaml up -d
+#   .env はこのファイルと同じ docker/ に置く（サンプルは docker/.env.sample）
+# プロジェクト名を固定する（docker/ に移す前と同じ名前にし、既存のボリューム activity-log_db-data を引き継ぐ）
+name: activity-log
+
+services:
+  app:
+    build:
+      context: ..                     # リポジトリ直下（app/ をコピーする）
+      dockerfile: docker/Dockerfile   # 除外設定は docker/Dockerfile.dockerignore
+    image: activity-log-app
+    restart: unless-stopped
+    ports:
+      # ホストOSのnginx（リバースプロキシ）から接続する。外部からの直接アクセスを防ぐため 127.0.0.1 のみに公開
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    volumes:
+      - db-data:/data          # SQLiteファイルを永続化
+    environment:
+      # 1日の感想の AI 要約に使う Gemini のモデル（API キーは各ユーザーが画面の「Gemini設定」で登録する）
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
+      # Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。docker/.env に GEMINI_KEY_SECRET=... と書く（サンプルは docker/.env.sample）
+      # 生成例: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+      GEMINI_KEY_SECRET: ${GEMINI_KEY_SECRET:-}
+
+volumes:
+  db-data:

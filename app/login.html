@@ -21,6 +21,7 @@
   }
   button:disabled { opacity: .6; cursor: default; }
   .error { color: var(--danger); font-size: .9rem; margin-top: 12px; min-height: 1.2em; }
+  .manual { display: block; text-align: center; font-size: .85rem; color: var(--accent); margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -34,6 +35,7 @@
     <button type="submit" id="login-btn">ログイン</button>
     <div class="error" id="error" role="alert"></div>
   </form>
+  <a class="manual" href="/manual.html" download>利用マニュアルをダウンロード</a>
 </main>
 <script>
   const $ = (id) => document.getElementById(id);

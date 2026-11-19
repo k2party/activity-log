@@ -1,5 +1,10 @@
 # 行動記録メモ バックエンド（Python標準ライブラリのみ / SQLite）
+# ビルドコンテキストはリポジトリ直下。除外設定は docker/Dockerfile.dockerignore（ホワイトリスト方式）
+#   docker compose -f docker/compose.yaml build  /  podman/build.sh
 FROM python:3.14-slim
+
+# このアプリのイメージの目印。build.sh が古いイメージを掃除するとき、このラベルで絞り込む（他のアプリのイメージは消さない）
+LABEL activity-log.image="app"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -12,7 +17,7 @@ RUN useradd --system --uid 10001 --no-create-home app \
  && mkdir -p /data && chown app:app /data
 
 WORKDIR /app
-COPY app/server.py app/auth.py app/pdf_report.py app/summarize.py app/secretbox.py app/index.html app/login.html app/users.html ./
+COPY app/server.py app/auth.py app/pdf_report.py app/summarize.py app/secretbox.py app/index.html app/login.html app/users.html app/MANUAL.html app/MANUAL_ADMIN.html ./
 
 USER app
 VOLUME ["/data"]

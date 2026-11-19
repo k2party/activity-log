@@ -136,7 +136,9 @@
     <span class="user" id="user-name"></span>
     <button type="button" id="gemini-btn">Gemini設定</button>
     <button type="button" id="pw-btn">パスワード変更</button>
+    <a class="btn" href="/manual.html" download title="利用マニュアル（HTML）をダウンロード">マニュアル</a>
     <a class="btn" href="/users" id="users-link" hidden>ユーザ管理</a>
+    <a class="btn" href="/manual_admin.html" id="admin-manual-link" download title="管理者マニュアル（HTML）をダウンロード" hidden>管理者マニュアル</a>
     <button type="button" id="logout-btn">ログアウト</button>
   </header>
   <div id="initial-pw-notice" class="notice" hidden>
@@ -1100,6 +1102,7 @@
     isAdmin = !!me.is_admin;
     $('user-name').textContent = `${me.name}（${me.user_id}）`;
     $('users-link').hidden = !me.is_admin;
+    $('admin-manual-link').hidden = !me.is_admin;
     summarizeEnabled = !!me.gemini_key_set;
     geminiKeyHint = me.gemini_key_hint || '';
     $('initial-pw-notice').hidden = sessionStorage.getItem(INITIAL_PW_KEY) !== '1';

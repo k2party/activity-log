@@ -1,0 +1,12 @@
+# docker/Dockerfile 用の除外設定（ビルドコンテキストはリポジトリ直下）。必要なファイルだけを通すホワイトリスト方式
+*
+!app/server.py
+!app/auth.py
+!app/pdf_report.py
+!app/summarize.py
+!app/secretbox.py
+!app/index.html
+!app/login.html
+!app/users.html
+!app/MANUAL.html
+!app/MANUAL_ADMIN.html

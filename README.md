@@ -20,6 +20,7 @@
 - **入力候補** — 最近使ったメモ・行先を候補として表示
 - **週間帳票 PDF** — 指定期間を含む月〜日を1ページ（A4横）として出力
 - **ログイン / ユーザー管理** — 各ユーザーは自分の記録のみ閲覧・編集可能。管理者（`admin`）はユーザーの追加・変更・削除が可能（ユーザ一覧では各ユーザーの Gemini API キーの設定有無を確認でき、設定ありの場合は `...` ＋末尾4文字を表示する。キーの登録・変更は本人のみ）
+- **利用マニュアル** — 一般ユーザー向けの利用マニュアル（`app/MANUAL.html`）を、ログイン画面と行動記録画面の「マニュアル」からダウンロードできる（ログイン不要）。管理者向けマニュアル（`app/MANUAL_ADMIN.html`）は管理者のみ、ユーザ管理画面と行動記録画面の「管理者マニュアル」からダウンロードできる
 - **管理者の帳票出力** — 管理者でログインすると行動記録の入力欄・一覧は表示せず、任意のユーザーを選んで指定期間の PDF 帳票・CSV を出力できる
 
 ## 必要環境
@@ -60,8 +61,12 @@ DB は既定で `data/activity_log.db` に作成されます（`data/` の中身
 ### Docker Compose で起動
 
 ```bash
-docker compose up -d --build
+docker/build.sh                            # イメージをビルド（初回は docker/.env も自動作成）
+docker compose -f docker/compose.yaml up -d   # 起動（アプリ更新時も build.sh の後にこれで反映）
 ```
+
+- Docker で使うファイル（`Dockerfile`・`compose.yaml`・除外設定・環境変数のサンプル）は `docker/` にまとめています。ビルドはリポジトリ直下をコンテキストにして行います。
+- 環境変数は `docker/.env` に書きます（git 管理外）。`docker/.env` が無ければ `docker/build.sh` が `docker/.env.sample` から作成し、`GEMINI_KEY_SECRET` には仮のキーではなく生成した値を入れます。既に `docker/.env` があれば変更しません（仮のキーのままなら警告します）。
 
 - `127.0.0.1:8000` のみに公開されます（ホスト側の nginx 等のリバースプロキシから接続する想定）。ポートは `APP_PORT` で変更できます。
 - DB は名前付きボリューム `db-data`（コンテナ内 `/data/activity_log.db`）に永続化されます。
@@ -91,6 +96,28 @@ loginctl enable-linger "$USER"   # ログアウト後も動かし続ける場合
 暗号キーを作り直す（`podman secret rm diary-gemini-key-secret` してから deploy）と、登録済みの Gemini API キーは復号できなくなり各ユーザーの再登録が必要になります。
 rootful の場合はスクリプトを使わず、Quadlet 定義を `/etc/containers/systemd/` に配置して `systemctl` を `--user` なしで実行します。
 
+## 運用（サーバー管理者向け）
+
+### バックアップ
+
+- データはすべて SQLite の1ファイル（コンテナ内 `/data/activity_log.db`）にあります。Podman はボリューム `diary-db_data`、Docker Compose はボリューム `db-data` です。
+- 定期的にボリュームごとバックアップしてください（例：`podman volume export diary-db_data -o diary-db_data.tar`）。復元は `podman volume import diary-db_data diary-db_data.tar`（Pod を停止してから）。
+- 暗号化用の秘密鍵（`GEMINI_KEY_SECRET` / secret `diary-gemini-key-secret`）は DB と別に保管し、DB と同じバックアップに入れないでください。
+
+### 動作確認・ログ
+
+- `/healthz` が `{"status": "ok"}` を返せば正常です（コンテナは30秒ごとに確認し、異常時は再起動します）。
+- ログ：Podman は `journalctl --user -u diary-app.service`、Docker Compose は `docker compose -f docker/compose.yaml logs app`。AI 要約の失敗の詳細（Gemini API のエラー）や DB の移行結果はログに出ます。
+- ログイン試行制限・要約回数制限はメモリ上にあり、再起動でリセットされます。
+
+### 管理者のパスワードを忘れた場合
+
+画面からは再設定できません。サーバー上で次を実行して、`admin` のパスワードを初期値（`actAdmin`）に戻してから、ログインして変更してください（コンテナの場合は Pod を停止し、ボリューム内の DB に対して実行します）。
+
+```bash
+python3 -c "import sys; sys.path.insert(0, 'app'); import auth, sqlite3; c = sqlite3.connect(sys.argv[1]); c.execute('UPDATE users SET password_hash = ? WHERE user_id = ?', (auth.hash_password('actAdmin'), 'admin')); c.commit()" data/activity_log.db
+```
+
 ## 初回ログイン
 
 DB 作成時に管理者ユーザーが自動で作成されます。
@@ -110,6 +137,8 @@ DB 作成時に管理者ユーザーが自動で作成されます。
 | `/` | 行動記録（要ログイン） |
 | `/login` | ログイン |
 | `/users` | ユーザ管理（管理者のみ） |
+| `/manual.html` | 利用マニュアル（HTML）のダウンロード（ログイン不要） |
+| `/manual_admin.html` | 管理者マニュアル（HTML）のダウンロード（管理者のみ） |
 
 ## API
 
@@ -173,11 +202,17 @@ app/                      アプリ本体
   index.html              行動記録画面
   login.html              ログイン画面
   users.html              ユーザ管理画面
+  MANUAL.html             一般ユーザー向けの利用マニュアル（/manual.html でダウンロード）
+  MANUAL_ADMIN.html       管理者向けマニュアル（/manual_admin.html でダウンロード。管理者のみ）
 data/                     ローカル実行用の DB 置き場（中身は git 管理外）
 spec/                     設計書（BasicSpecification.md：基本設計書）
 podman/                   Podman Quadlet 定義（.pod / .container / .volume）とビルド・配置スクリプト
-Dockerfile                コンテナイメージ（app/ の中身を /app にコピー）
-compose.yaml              Docker Compose 定義
+docker/                   Docker 用のファイル
+  Dockerfile              コンテナイメージ（app/ の中身を /app にコピー。Podman のビルドでも使う）
+  Dockerfile.dockerignore ビルド時の除外設定（ホワイトリスト方式）
+  compose.yaml            Docker Compose 定義
+  .env.sample             Docker Compose 用の環境変数のサンプル（docker/.env にコピーして使う）
+  build.sh                イメージをビルドする（docker/.env が無ければ .env.sample から作成。秘密鍵は生成した値）
 ```
 
 DB スキーマは `PRAGMA user_version` で管理され、起動時に自動でマイグレーションされます。

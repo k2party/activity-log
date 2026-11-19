@@ -13,7 +13,7 @@ UI 文言・エラーメッセージ・コメント・コミットメッセー�
 ```bash
 python3 app/server.py                       # http://127.0.0.1:8000/ （DB: data/activity_log.db）
 python3 app/server.py --port 8001 --db /tmp/test.db   # 使い捨て DB で動作確認
-docker compose up -d --build                # コンテナで起動（127.0.0.1:8000）
+docker/build.sh && docker compose -f docker/compose.yaml up -d   # Docker Compose でビルド・起動（127.0.0.1:8000。.env は docker/.env）
 podman/build.sh && podman/deploy.sh   # Podman Quadlet でビルド・配置・起動（暗号キーは未作成時のみ生成）
 ```
 
@@ -30,6 +30,7 @@ podman/build.sh && podman/deploy.sh   # Podman Quadlet でビルド・配置・�
 - `app/pdf_report.py` — PDF を自前で組み立てる（ライブラリ不使用）。日本語は非埋め込みの標準フォント（HeiseiKakuGo-W5）を参照。1週（月〜日）＝A4横1ページ。
 - `app/index.html` — 行動記録画面。JS はインライン。CSV 出力はクライアント側で生成する。
 - `login.html` / `users.html` — ログイン、ユーザ管理（管理者のみ）。
+- `app/MANUAL.html` — 一般ユーザー向けの利用マニュアル。`/manual.html` でダウンロードさせる（ログイン不要）。`app/MANUAL_ADMIN.html` は管理者向け（`/manual_admin.html`、管理者のみ）。画面の操作や仕様を変えたら両方のマニュアルも更新する。
 
 ### 重要な横断仕様
 
@@ -44,7 +45,8 @@ podman/build.sh && podman/deploy.sh   # Podman Quadlet でビルド・配置・�
 
 ### デプロイ上の注意
 
-- `Dockerfile` は `app/` 内のファイルを**個別に列挙して COPY** しており、`.dockerignore` もホワイトリスト方式。`app/` にファイルを追加したら両方を更新すること。
+- Docker 用のファイルは `docker/` に集約している（`Dockerfile`・`Dockerfile.dockerignore`・`compose.yaml`・`.env.sample`・`build.sh`）。ビルドコンテキストはリポジトリ直下で、Podman（`podman/build.sh`）も `docker/Dockerfile` を使う。古いイメージの掃除は `docker/Dockerfile` のラベル `activity-log.image=app` で絞った prune で行い、絞り込みなしの `image prune` は使わない（同じホストの他のアプリのイメージを消さないため）。
+- `docker/Dockerfile` は `app/` 内のファイルを**個別に列挙して COPY** しており、`docker/Dockerfile.dockerignore` もホワイトリスト方式。`app/` にファイルを追加したら両方を更新すること。
 - コンテナは `TRUST_PROXY=1` でリバースプロキシ配下を想定。Podman Quadlet 定義は `podman/`（名前は `diary`）。
 - README.md にユーザー向けの機能・API 一覧があるので、機能や API を変更したら README も更新する。
 - `spec/BasicSpecification.md` に基本設計書（画面・帳票・業務ルール・DB・API など）があるので、仕様を変更したら README と合わせて設計書も更新する。

@@ -1,9 +1,0 @@
-*
-!app/server.py
-!app/auth.py
-!app/pdf_report.py
-!app/summarize.py
-!app/secretbox.py
-!app/index.html
-!app/login.html
-!app/users.html

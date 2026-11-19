@@ -40,6 +40,8 @@ systemctl --user daemon-reload
 # 起動していなければ起動、起動中なら新しいイメージ・設定で再起動する
 systemctl --user restart "$SERVICE"
 echo "$SERVICE を（再）起動しました"
+# 再起動で使われなくなったこのアプリの古いイメージを削除する（ラベルで絞り込み、他のアプリのイメージには触れない）
+podman image prune -f --filter "label=activity-log.image=app" >/dev/null || true
 systemctl --user --no-pager status "$SERVICE" | head -n 5 || true
 
 if [ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != "yes" ]; then

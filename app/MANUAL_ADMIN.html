@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>行動記録メモ 管理者マニュアル</title>
+<!-- 管理者（アプリの admin）向けのマニュアル。/manual_admin.html でダウンロードさせる（管理者のみ。初期パスワードを含むため）。
+     サーバー管理者向けの運用手順は README.md に書く。
+     ダウンロードしたファイル単体でも表示できるよう、外部ファイルは読み込まない。スタイルは MANUAL.html と揃える -->
+<style>
+  :root { --bg: #f5f6f8; --card: #fff; --text: #222; --sub: #666; --accent: #2f6fde; --border: #e2e4e8; --head: #f0f3f8; --code: #eef1f5;
+          --warn-bg: #fff6e5; --warn-border: #f0c36d; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16181c; --card: #1f2227; --text: #e6e6e6; --sub: #a0a4ab; --accent: #7aa7ff; --border: #343841; --head: #282c33; --code: #2b2f36;
+            --warn-bg: #3a3020; --warn-border: #8a6d2f; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text); line-height: 1.75;
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.6rem; margin: 8px 0 12px; }
+  h2 { font-size: 1.25rem; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); }
+  h3 { font-size: 1.05rem; margin: 20px 0 8px; }
+  section, nav.toc { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 16px 0; }
+  .lead { color: var(--sub); }
+  .warn { background: var(--warn-bg); border: 1px solid var(--warn-border); border-radius: 8px; padding: 8px 14px; margin: 10px 0; }
+  a { color: var(--accent); }
+  code { background: var(--code); border-radius: 4px; padding: 1px 5px; font-size: .92em;
+         font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; }
+  pre { background: var(--code); border-radius: 6px; padding: 10px 14px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+  ul, ol { padding-left: 1.5em; }
+  li { margin: 4px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: .95rem; display: block; overflow-x: auto; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--head); white-space: nowrap; }
+  .top-link { display: block; text-align: right; font-size: .85rem; margin-top: 8px; }
+  @media print {
+    :root { --bg: #fff; --card: #fff; --text: #000; --sub: #333; --accent: #1a4fb0; --border: #999; --head: #eee; --code: #f2f2f2;
+            --warn-bg: #fff; --warn-border: #999; }
+    main { max-width: none; padding: 0; }
+    section, nav.toc { border: 0; padding: 0; margin: 0 0 18px; }
+    section { break-before: page; }
+    nav.toc { break-before: auto; }
+    table { display: table; }
+    tr, h2, h3, pre { break-inside: avoid; }
+    .top-link { display: none; }
+  }
+</style>
+</head>
+<body>
+<main id="top">
+<h1>行動記録メモ 管理者マニュアル</h1>
+<p class="lead">管理者（ユーザID <code>admin</code>）向けのマニュアルです。ユーザーの登録・管理と、利用者の帳票の出力について説明します。
+一般ユーザーの操作（行動の記録・感想・AI 要約など）は「利用マニュアル」を参照してください。</p>
+<p class="warn">このマニュアルには初期パスワードなど、管理に関わる情報が含まれます。一般ユーザーには配布しないでください。</p>
+
+<nav class="toc"><h2>目次</h2>
+<ol>
+<li><a href="#s1">管理者の役割</a></li>
+<li><a href="#s2">初めてログインしたとき</a></li>
+<li><a href="#s3">ユーザーを追加する</a></li>
+<li><a href="#s4">ユーザーの氏名・パスワードを変更する</a></li>
+<li><a href="#s5">ユーザーを削除する</a></li>
+<li><a href="#s6">Gemini API キーの設定状態を確認する</a></li>
+<li><a href="#s7">利用者の帳票（PDF）・CSV を出力する</a></li>
+<li><a href="#s8">困ったときは</a></li>
+</ol></nav>
+
+<section>
+<h2 id="s1">1. 管理者の役割</h2>
+<p>管理者は、ユーザID <code>admin</code> の1アカウントだけです（削除できません）。管理者ができること・できないことは次のとおりです。</p>
+<table>
+<thead><tr><th>できること</th><th>できないこと</th></tr></thead>
+<tbody>
+<tr><td>
+<ul>
+<li>ユーザーの追加・氏名変更・パスワードの再設定・削除</li>
+<li>各ユーザーの Gemini API キーの設定状態の確認</li>
+<li>任意のユーザーの帳票（PDF）・CSV の出力</li>
+</ul>
+</td><td>
+<ul>
+<li>行動記録・感想の入力・編集（管理者の画面には入力欄が出ません）</li>
+<li>他のユーザーの記録の編集・削除</li>
+<li>他のユーザーの Gemini API キーの閲覧・登録・変更（本人のみ）</li>
+<li>ユーザIDの変更</li>
+</ul>
+</td></tr>
+</tbody></table>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+
+<section>
+<h2 id="s2">2. 初めてログインしたとき</h2>
+<p>データベースを新しく作成したときに、管理者アカウントが自動で作られます。</p>
+<table>
+<thead><tr><th>ユーザID</th><th>初期パスワード</th></tr></thead>
+<tbody>
+<tr><td><code>admin</code></td><td><code>actAdmin</code></td></tr>
+</tbody></table>
+<ol>
+<li>ログイン画面で上記のユーザID・パスワードを入力してログインします。</li>
+<li>画面上部に「管理者の初期パスワードのままです」と表示されるので、<strong>「変更する」</strong>（または「パスワード変更」）を押します。</li>
+<li>現在のパスワード（<code>actAdmin</code>）と、新しいパスワード（8〜128文字）を2回入力して <strong>「変更する」</strong> を押します。</li>
+</ol>
+<p class="warn">初期パスワードは公開されている値です。<strong>必ず最初に変更してください。</strong></p>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+
+<section>
+<h2 id="s3">3. ユーザーを追加する</h2>
+<ol>
+<li>画面上部の <strong>「ユーザ管理」</strong> を押します。</li>
+<li>「ユーザー追加」に次の項目を入力し、<strong>「追加」</strong> を押します。
+<table>
+<thead><tr><th>項目</th><th>入力ルール</th></tr></thead>
+<tbody>
+<tr><td>ユーザID</td><td>半角英数字と <code>_</code> <code>.</code> <code>@</code> <code>-</code> で32文字以内。大文字・小文字の違いだけの重複はできません。<strong>登録後は変更できません</strong></td></tr>
+<tr><td>氏名</td><td>50文字以内。帳票（PDF）のヘッダに印刷されます</td></tr>
+<tr><td>パスワード</td><td>8〜128文字</td></tr>
+</tbody></table>
+</li>
+<li>追加したユーザーに、ログインするアドレス・ユーザID・パスワードを伝えます。あわせて「利用マニュアル」（ログイン画面からダウンロードできます）を案内してください。</li>
+</ol>
+<ul>
+<li>パスワードは安全な方法で伝え、ユーザー本人に「パスワード変更」で変えてもらうことをおすすめします。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+
+<section>
+<h2 id="s4">4. ユーザーの氏名・パスワードを変更する</h2>
+<ol>
+<li>「ユーザ管理」の「ユーザー一覧」で、対象ユーザーの行を探します。</li>
+<li>氏名を変える場合は <strong>氏名</strong> の欄を書き換えます。</li>
+<li>パスワードを再設定する場合は <strong>新しいパスワード</strong> の欄に入力します（変えない場合は空欄のまま）。</li>
+<li>その行の <strong>「保存」</strong> を押します。</li>
+</ol>
+<ul>
+<li>パスワードを再設定すると、そのユーザーはすべての端末でログアウトされ、新しいパスワードでの再ログインが必要になります。</li>
+<li>ユーザーがパスワードを忘れたときは、この手順で再設定して本人に伝えてください。</li>
+<li>管理者自身のパスワードもこの画面で変更できます（行動記録画面の「パスワード変更」でも変更できます）。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+
+<section>
+<h2 id="s5">5. ユーザーを削除する</h2>
+<ol>
+<li>「ユーザ管理」の「ユーザー一覧」で、対象ユーザーの行の <strong>「削除」</strong> を押します。</li>
+<li>確認のメッセージで OK を押します。</li>
+</ol>
+<p class="warn">削除すると、そのユーザーの<strong>行動記録・1日の感想・Gemini API キーもすべて削除され、元に戻せません。</strong>
+必要な場合は、削除する前に帳票（PDF）・CSV を出力して保管してください（<a href="#s7">7章</a>）。</p>
+<ul>
+<li>管理者（<code>admin</code>）は削除できません。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+
+<section>
+<h2 id="s6">6. Gemini API キーの設定状態を確認する</h2>
+<p>感想の AI 要約は、各ユーザーが自分の Gemini API キーを「Gemini設定」で登録したときだけ使えます。
+「ユーザ管理」の一覧の <strong>「Gemini API キー」</strong> の列で、各ユーザーの設定状態を確認できます。</p>
+<table>
+<thead><tr><th>表示</th><th>意味</th><th>対応</th></tr></thead>
+<tbody>
+<tr><td><code>...abcd</code></td><td>設定済み（キーの末尾4文字）</td><td>—</td></tr>
+<tr><td>未設定</td><td>キーが登録されていない</td><td>AI 要約を使う場合は、本人に登録してもらいます</td></tr>
+<tr><td>使用不可</td><td>キーの登録はあるが、サーバーに暗号化用の秘密鍵（<code>GEMINI_KEY_SECRET</code>）が設定されていない</td><td>サーバー管理者に秘密鍵の設定を依頼します</td></tr>
+<tr><td>要再登録</td><td>サーバーの秘密鍵が変わったなどで、登録済みのキーを復号できない</td><td>本人に「Gemini設定」でキーを登録し直してもらいます</td></tr>
+</tbody></table>
+<ul>
+<li>キーの中身は管理者にも表示されません。キーの登録・変更・削除は本人だけができます。</li>
+<li>キーは暗号化して保存されているため、データベースのファイルだけが漏れてもキーは読めません。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+
+<section>
+<h2 id="s7">7. 利用者の帳票（PDF）・CSV を出力する</h2>
+<p>管理者でログインすると、行動記録画面には入力欄・一覧の代わりに <strong>「出力するユーザー」</strong> の選択欄が表示されます。</p>
+<ol>
+<li><strong>「出力するユーザー」</strong> でユーザーを選びます（管理者自身は選択肢に出ません）。</li>
+<li>「1日」「期間」、日付、または「今日」「今週」「先月」などのボタンで、出力する期間を指定します。
+画面に「（氏名）の（期間）の記録：n件」と件数が表示されます。</li>
+<li><strong>「PDF出力」</strong> または <strong>「CSV出力」</strong> を押します。</li>
+</ol>
+<table>
+<thead><tr><th>出力</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>PDF出力</td><td>指定期間を含む週（月曜〜日曜）ごとに、A4 横1ページの帳票を別のタブで表示します。列は「日付 / 時刻 / 行動 / メモ / 1日の感想 / 服薬時刻」で、ヘッダに期間・氏名・出力日時が入ります</td></tr>
+<tr><td>CSV出力</td><td>指定期間の記録を「日付 / 種類 / 開始日時 / 終了日時 / メモ」の CSV で保存します（感想は含みません）</td></tr>
+</tbody></table>
+<ul>
+<li>ファイル名には、選んだユーザーのユーザIDと出力日時が入ります（例：<code>行動記録_user01_2026-11-09_2026-11-15_20261115-093824.pdf</code>）。</li>
+<li>期間は最大400日まで指定できます。</li>
+<li>夜に寝て朝に起きた睡眠は「起きた日」の記録として出力されます（一覧・PDF・CSV で共通）。</li>
+</ul>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+
+<section>
+<h2 id="s8">8. 困ったときは</h2>
+<table>
+<thead><tr><th>困りごと</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td>ユーザーがパスワードを忘れた</td><td>「ユーザ管理」で新しいパスワードを設定して本人に伝えます（<a href="#s4">4章</a>）</td></tr>
+<tr><td>ユーザーがログインできない（失敗が続いた）</td><td>同じ接続元・ユーザIDで15分間に5回失敗すると、一時的にログインできなくなります。15分ほど待ってもらいます（サーバーを再起動しても解除されます）</td></tr>
+<tr><td>管理者のパスワードを忘れた</td><td>画面からは再設定できません。サーバー管理者に相談してください</td></tr>
+<tr><td>「そのユーザIDは既に使われています」と表示される</td><td>大文字・小文字の違いだけのユーザIDは登録できません。別のユーザIDにしてください</td></tr>
+<tr><td>「出力するユーザー」が選べない</td><td>一般ユーザーが1人も登録されていません。先にユーザーを追加してください</td></tr>
+<tr><td>Gemini API キーが「使用不可」「要再登録」になっている</td><td><a href="#s6">6章</a>を参照してください</td></tr>
+<tr><td>AI 要約がエラーになると相談された</td><td>本人の API キーが無効・利用上限・Gemini の混雑が考えられます。本人に「Gemini設定」でキーを確認してもらうか、時間をおいて試してもらいます。詳しい原因はサーバーのログに出ます（サーバー管理者に確認を依頼します）</td></tr>
+<tr><td>PDF の文字が表示されない</td><td>日本語フォントに対応した PDF ビューア（Chrome、Edge、Acrobat Reader など）で開いてください</td></tr>
+</tbody></table>
+<a class="top-link" href="#top">▲ 目次へ戻る</a>
+</section>
+</main>
+</body>
+</html>
