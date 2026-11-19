@@ -123,7 +123,7 @@ docker compose -f docker/compose.yaml up -d   # 起動（アプリ更新時も b
 | `podman/diary-app.container` | アプリ本体（イメージ `localhost/activity-log-app:latest`、非 root・ヘルスチェック・自動再起動） |
 | `podman/diary-db_data.volume` | DB 永続化用ボリューム `diary-db_data`（コンテナ内 `/data`） |
 | `podman/build.sh` | イメージ `localhost/activity-log-app:latest` をビルドする |
-| `podman/deploy.sh` | 暗号キー `GEMINI_KEY_SECRET` を Podman secret `diary-gemini-key-secret` として生成し（作成済みなら更新しない）、Quadlet 定義を `~/.config/containers/systemd/` にコピーして `diary-pod.service` を（再）起動する |
+| `podman/deploy.sh` | 暗号キー `GEMINI_KEY_SECRET` を Podman secret `diary-gemini-key-secret` として生成し（作成済みなら更新しない）、配置先 `~/.config/containers/systemd/` にあるこのアプリの Quadlet 定義をすべて削除してからコピーし直し、`diary-pod.service` を（再）起動する。`--llm` を付けるとローカル LLM も配置する（省略すると diary-llm を停止して定義を配置しない。ボリュームは削除しない） |
 
 rootless の場合:
 
@@ -140,12 +140,12 @@ rootful の場合はスクリプトを使わず、Quadlet 定義を `/etc/contai
 ### ローカル LLM（Ollama）のコンテナ
 
 アプリと同じ環境で動くローカル LLM として、[Ollama](https://ollama.com/) の公式イメージ（`docker.io/ollama/ollama`）のコンテナを用意しています。起動は任意で、指定しなければ起動しません。
-アプリの AI 要約に使うには、アプリに環境変数 `DIARY_LLM_URL` を設定します（Docker Compose は `docker/.env` に `DIARY_LLM_URL=http://llm:11434`、Podman は `podman/diary-app.container` の `Environment=DIARY_LLM_URL=http://127.0.0.1:11434` のコメントを外す）。
+アプリの AI 要約に使うには、アプリに環境変数 `DIARY_LLM_URL` を設定します（Docker Compose は `docker/.env` に `DIARY_LLM_URL=http://llm:11434`、Podman は `podman/deploy.sh --llm` で配置すると、配置先の `diary-app.container` で `DIARY_LLM_URL=http://127.0.0.1:11434` と `LLM_MODEL` が自動で有効になる）。Podman の配置先（`~/.config/containers/systemd/`）の定義ファイルは deploy のたびに削除してコピーし直すので、ローカル LLM を使い続けるには毎回 `--llm` を付けます。
 
 - Ollama の API には認証が無いため、ホストには公開しません。アプリのコンテナからは、Docker Compose では `http://llm:11434`、Podman では同じ Pod 内の `http://127.0.0.1:11434` で接続できます。
 - 取得したモデルはボリュームに保存されます（Docker Compose は `llm-data`、Podman は `diary-llm_data`。コンテナ内 `/root/.ollama`）。
 - 既定では CPU で動きます。NVIDIA GPU を使う場合は、ホストに NVIDIA Container Toolkit を入れ、`docker/compose.yaml` の `deploy:`、または `podman/diary-llm.container` の `AddDevice=` のコメントを外します。
-- 既定のモデルは `gemma3:1b`（約 0.8GB。CPU でも動く軽量モデル）で、起動時に自動で取得します（取得済みなら差分の確認だけ）。変更するには、Docker Compose は `docker/.env` の `LLM_MODEL`（取得とアプリの両方に効く）、Podman は `LLM_MODEL=<モデル名> podman/deploy.sh` で取得し、`podman/diary-app.container` の `Environment=LLM_MODEL=` も合わせます。
+- 既定のモデルは `gemma3:1b`（約 0.8GB。CPU でも動く軽量モデル）で、起動時に自動で取得します（取得済みなら差分の確認だけ）。変更するには、Docker Compose は `docker/.env` の `LLM_MODEL`（取得とアプリの両方に効く）、Podman は `podman/deploy.sh --llm <モデル名>` で指定します（取得とアプリの両方に効く。モデル名を省略すると `gemma3:1b`。前回のモデルは引き継がないので、deploy のたびに指定する）。
 
 Docker Compose:
 
@@ -162,11 +162,12 @@ Podman（Quadlet）:
 | `podman/diary-llm_data.volume` | モデル保存用ボリューム `diary-llm_data`（コンテナ内 `/root/.ollama`） |
 
 ```bash
-podman/deploy.sh --llm             # アプリに加えて diary-llm も配置・起動し、既定のモデルを取得（以降は --llm なしでも更新される）
+podman/deploy.sh --llm             # アプリに加えて diary-llm も配置・起動し、モデル（既定 gemma3:1b）を取得して AI 要約に使う（deploy のたびに --llm が必要）
+podman/deploy.sh --llm gemma3:4b   # モデルを指定する場合
 podman exec diary-llm ollama list  # 取得済みのモデルを確認
 ```
 
-やめる場合は `~/.config/containers/systemd/` から `diary-llm.container` と `diary-llm_data.volume` を削除して `systemctl --user daemon-reload && systemctl --user restart diary-pod.service` を実行します。
+やめる場合は `--llm` を付けずに `podman/deploy.sh` を実行します（diary-llm を停止して定義を削除し、AI 要約は Gemini に戻る）。取得したモデルのボリューム `diary-llm_data` は削除しないので、再び `--llm` を付ければ取得し直さずに使えます。ボリュームも消す場合は `podman volume rm diary-llm_data` を手動で実行します。
 
 ## 運用（サーバー管理者向け）
 

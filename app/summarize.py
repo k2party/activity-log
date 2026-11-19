@@ -127,7 +127,7 @@ def _request(model, body, key):
 
 
 def _summarize_local(text):
-    """ローカル LLM（Ollama の /api/chat）で要約する。失敗時は SummarizeError"""
+    """ローカル LLM（Ollama の /api/chat）で要約する。失敗時は SummarizeError（画面のメッセージにはモデル名を出す）"""
     body = {
         "model": LOCAL_MODEL,
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
@@ -152,19 +152,19 @@ def _summarize_local(text):
         print(f"ローカル LLM エラー {e.code}（{LOCAL_MODEL}）: {detail}", flush=True)
         if e.code == 404:
             raise SummarizeError(f"ローカル LLM にモデル（{LOCAL_MODEL}）がありません。管理者に連絡してください")
-        raise SummarizeError(f"ローカル LLM でエラーが発生しました（{e.code}）")
+        raise SummarizeError(f"{LOCAL_MODEL} でエラーが発生しました（{e.code}）")
     except (TimeoutError, urllib.error.URLError, OSError) as e:
         if isinstance(e, TimeoutError) or isinstance(getattr(e, "reason", None), TimeoutError):
             print(f"ローカル LLM タイムアウト（{LOCAL_MODEL}）", flush=True)
-            raise SummarizeError("ローカル LLM の要約が時間内に終わりませんでした。しばらくしてから再度お試しください")
+            raise SummarizeError(f"{LOCAL_MODEL} の要約が時間内に終わりませんでした。しばらくしてから再度お試しください")
         print(f"ローカル LLM 接続エラー（{LOCAL_URL}）: {e}", flush=True)
-        raise SummarizeError("ローカル LLM に接続できませんでした")
+        raise SummarizeError(f"{LOCAL_MODEL} に接続できませんでした")
     except ValueError:
-        raise SummarizeError("ローカル LLM の応答が不正です")
+        raise SummarizeError(f"{LOCAL_MODEL} の応答が不正です")
     summary = ((data.get("message") or {}).get("content") or "").strip() if isinstance(data, dict) else ""
     if not summary:
         print(f"ローカル LLM 応答が空: {data.get('done_reason') if isinstance(data, dict) else '不明'}", flush=True)
-        raise SummarizeError("要約を生成できませんでした")
+        raise SummarizeError(f"{LOCAL_MODEL} で要約を生成できませんでした")
     return summary
 
 

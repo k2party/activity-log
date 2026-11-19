@@ -661,6 +661,7 @@ class Handler(BaseHTTPRequestHandler):
         # ローカル LLM のときは API キーなしで要約でき、Gemini の設定は使わない
         self.send_json(200, {**user, "gemini_key_set": bool(key), "gemini_key_hint": key[-4:] if key else "",
                              "summarizer": "local" if local else "gemini",
+                             "summarizer_model": summarize.LOCAL_MODEL if local else "",
                              "summarize_enabled": local or bool(key)})
 
     def gemini_key(self, user):

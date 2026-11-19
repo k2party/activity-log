@@ -439,7 +439,7 @@
 | 指示 | Gemini と同じシステムプロンプト |
 
 - 利用できるユーザー：全ユーザー（API キーの登録は不要）。回数制限は Gemini と同じ。
-- エラー時はいずれも 502：モデルが無い（404）、その他の HTTP エラー、タイムアウト、接続できない、応答が不正・空。詳細はサーバーログに出す。
+- エラー時はいずれも 502：モデルが無い（404）、その他の HTTP エラー、タイムアウト、接続できない、応答が不正・空。画面のメッセージにはモデル名（`LLM_MODEL`）を出し（例：「gemma3:1b の要約が時間内に終わりませんでした」）、Gemini の文言は使わない。詳細はサーバーログに出す。
 - 感想の本文は指定したローカル LLM にのみ送信され、Google には送信されない。
 
 ---
@@ -553,7 +553,7 @@
 | A01 | GET | `/healthz` | なし | ヘルスチェック `{"status":"ok"}` |
 | A02 | POST | `/api/login` | なし | ログイン。`{user_id, password}` → ユーザー情報＋`initial_password`、Cookie 発行 |
 | A03 | POST | `/api/logout` | なし | ログアウト（セッション削除・Cookie 消去） |
-| A04 | GET | `/api/me` | ログイン | 自分の情報 `{user_id, name, is_admin, gemini_key_set, gemini_key_hint, summarizer, summarize_enabled}`（`summarizer` は `gemini` / `local`、`summarize_enabled` は AI 要約を使えるか） |
+| A04 | GET | `/api/me` | ログイン | 自分の情報 `{user_id, name, is_admin, gemini_key_set, gemini_key_hint, summarizer, summarizer_model, summarize_enabled}`（`summarizer` は `gemini` / `local`、`summarizer_model` はローカル LLM のときのモデル名（`LLM_MODEL`。Gemini のときは空）で「AI要約」ボタンの説明に表示する、`summarize_enabled` は AI 要約を使えるか） |
 | A05 | PUT | `/api/me/password` | ログイン | `{current_password, new_password}`。他端末のセッションを削除 |
 | A06 | PUT | `/api/me/gemini-key` | ログイン | `{api_key}` を暗号化して保存（空なら削除）→ `{gemini_key_set, gemini_key_hint}` |
 | A07 | GET | `/api/activities` | ログイン | 期間にかかる行動記録（期間内に開始、期間前に開始して期間内まで続く、前日 18:00 以降就寝の睡眠）。管理者は `user_id` 指定可 |
@@ -603,7 +603,7 @@
 
 - **Podman Quadlet**：Pod `diary`（`127.0.0.1:8000` を公開）、コンテナ `diary-app`、ボリューム `diary-db_data`（`/data`）。
   - `podman/build.sh`：イメージ `localhost/activity-log-app:latest` をビルドする。
-  - `podman/deploy.sh`：secret `diary-gemini-key-secret` が無ければ生成し（作成済みなら更新しない）、Quadlet 定義を `~/.config/containers/systemd/` にコピーして `diary-pod.service` を（再）起動する。`--llm` を付けるとローカル LLM のコンテナも配置する（配置済みなら以降は付けなくても更新する）。
+  - `podman/deploy.sh`：secret `diary-gemini-key-secret` が無ければ生成し（作成済みなら更新しない）、配置先 `~/.config/containers/systemd/` にあるこのアプリの Quadlet 定義（`diary.pod`・`diary-db_data.volume`・`diary-app.container`・`diary-llm.container`・`diary-llm_data.volume`）をすべて削除してからコピーし直し（リポジトリのファイルは変更しない）、`diary-pod.service` を（再）起動する。`--llm [モデル名]` を付けるとローカル LLM のコンテナも配置し、コピー先の `diary-app.container` で `DIARY_LLM_URL`（`http://127.0.0.1:11434`）・`LLM_MODEL` を有効にする（モデルは `--llm` に続けて指定したもの、省略時は `gemma3:1b`。前回のモデルは引き継がない）。`--llm` を省略すると、動いている diary-llm を停止し、その定義は配置しない。ボリュームは削除しない（`podman volume rm` はしない）。
 - **ローカル LLM（任意）**：Ollama の公式イメージ（`docker.io/ollama/ollama`）。現時点ではアプリから接続していない（AI 要約は Gemini API）。
   - Docker Compose：サービス `llm`（プロファイル `llm`。`--profile llm` または `COMPOSE_PROFILES=llm` で起動）、ボリューム `llm-data`。アプリからは `http://llm:11434`。
   - Podman Quadlet：コンテナ `diary-llm`（Pod `diary` 内）、ボリューム `diary-llm_data`。アプリからは `http://127.0.0.1:11434`。
