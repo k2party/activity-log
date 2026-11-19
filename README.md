@@ -127,7 +127,7 @@ DB 作成時に管理者ユーザーが自動で作成されます。
 | POST | `/api/activities` | 行動記録の追加 |
 | PUT / DELETE | `/api/activities/{id}` | 行動記録の更新 / 削除 |
 | GET | `/api/activities/open-sleep` | 起床未入力の最新の睡眠 |
-| GET | `/api/history?category=meal\|out\|other` | 入力候補（最近のメモ） |
+| GET | `/api/history?category=meal\|medicine\|out\|other` | 入力候補（最近のメモ。重複なし・新しい順・最大50件） |
 | GET | `/api/daily-notes?from=&to=` | 期間内の感想（管理者は `&user_id=` で他のユーザーを指定可） |
 | PUT | `/api/daily-notes/{YYYY-MM-DD}` | 感想の保存（空なら削除） |
 | POST | `/api/summarize` | 文章 `{"text": ...}` を本人の API キーで Gemini に要約させ `{"summary": ...}` を返す（保存はしない。キー未登録時は 400） |
@@ -168,10 +168,13 @@ app/                      アプリ本体
   server.py               HTTP サーバー・API・DB スキーマ／マイグレーション
   auth.py                 パスワードハッシュ・セッション・ログイン試行制限
   pdf_report.py           週間帳票 PDF の生成
+  summarize.py            Gemini API による感想の要約
+  secretbox.py            Gemini API キーの暗号化
   index.html              行動記録画面
   login.html              ログイン画面
   users.html              ユーザ管理画面
 data/                     ローカル実行用の DB 置き場（中身は git 管理外）
+spec/                     設計書（BasicSpecification.md：基本設計書）
 podman/                   Podman Quadlet 定義（.pod / .container / .volume）とビルド・配置スクリプト
 Dockerfile                コンテナイメージ（app/ の中身を /app にコピー）
 compose.yaml              Docker Compose 定義

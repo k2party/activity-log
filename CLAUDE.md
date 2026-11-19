@@ -47,3 +47,4 @@ podman/build.sh && podman/deploy.sh   # Podman Quadlet でビルド・配置・�
 - `Dockerfile` は `app/` 内のファイルを**個別に列挙して COPY** しており、`.dockerignore` もホワイトリスト方式。`app/` にファイルを追加したら両方を更新すること。
 - コンテナは `TRUST_PROXY=1` でリバースプロキシ配下を想定。Podman Quadlet 定義は `podman/`（名前は `diary`）。
 - README.md にユーザー向けの機能・API 一覧があるので、機能や API を変更したら README も更新する。
+- `spec/BasicSpecification.md` に基本設計書（画面・帳票・業務ルール・DB・API など）があるので、仕様を変更したら README と合わせて設計書も更新する。
