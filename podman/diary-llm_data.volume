@@ -1,0 +1,6 @@
+# 行動記録メモ ローカルLLM（Ollama）のモデル用ボリューム（Podman Quadlet）
+[Unit]
+Description=行動記録メモ ローカルLLM モデルボリューム
+
+[Volume]
+VolumeName=diary-llm_data

@@ -14,7 +14,8 @@
   | 外出 (`out`) | 開始〜終了・行先 |
   | その他 (`other`) | 開始〜終了・内容 |
 - **1日の感想** — 日付ごとに1件（1000文字まで）
-- **感想の AI 要約** — 入力中の感想（50文字以上）を Google Gemini で要約して入力欄に反映（保存前に確認・「元に戻す」可能）
+- **感想の AI 要約** — 入力中の感想（50文字以上）を Google Gemini、またはローカル LLM（環境変数 `DIARY_LLM_URL` を設定した場合）で要約して入力欄に反映（保存前に確認・「元に戻す」可能）
+  - `DIARY_LLM_URL` を設定した場合は、指定した Ollama に接続して要約する（API キー不要で全ユーザーが使える。「Gemini設定」は表示しない。感想は外部に送信されない）
   - API キーを設定したユーザーのみ使える。「AI要約」でサーバーがそのユーザーのキーで Gemini API を呼び出し、要約を直接反映する（API キー未設定のユーザーには「AI要約」ボタンを表示しない）
   - API キーは各ユーザーが画面右上の氏名（ユーザID）のメニューの「Gemini設定」で登録・削除する（[Google AI Studio](https://aistudio.google.com/apikey) で取得）。キーは本人の要約にのみ使われ、画面・API には末尾4文字以外返さない
 - **入力候補** — 最近使ったメモ・行先を候補として表示
@@ -49,14 +50,54 @@ DB は既定で `data/activity_log.db` に作成されます（`data/` の中身
 | — | `TRUST_PROXY=1` | 無効 | リバースプロキシ配下で `X-Forwarded-For` / `X-Forwarded-Proto` を信頼する |
 | — | `COOKIE_SECURE=1` | 無効 | ログイン Cookie に常に `Secure` 属性を付ける（HTTPS 運用時） |
 | — | `GEMINI_KEY_SECRET` | 未設定 | 各ユーザーの Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。未設定のときは API キーを登録できず、AI 要約は使えない（他の機能は使える） |
+| — | `DIARY_LLM_URL` | 未設定 | AI 要約に使うローカル LLM（Ollama）の接続先 URL（例：`http://llm:11434`）。設定すると Gemini は使わず、API キーなしで全ユーザーが AI 要約を使える。`/api/chat` を呼び出す（タイムアウト 50 秒、再試行なし）。http / https 以外は起動を中止する |
+| — | `LLM_MODEL` | `gemma3:1b` | ローカル LLM で要約に使うモデル |
 | — | `GEMINI_MODEL` | `gemini-flash-latest` | 要約に使う Gemini のモデル（混み合って 503 等やタイムアウトになったときは `gemini-flash-lite-latest` で1回だけ再試行する） |
 
-> AI 要約を使うと、感想の本文が Google（Gemini）に送信されます。要約は1ユーザーあたり10分間に20回まで。
+> AI 要約を使うと、感想の本文が Google（Gemini）に送信されます（`DIARY_LLM_URL` を設定した場合は、指定したローカル LLM にだけ送信されます）。要約は1ユーザーあたり10分間に20回まで。
 >
 > 各ユーザーの Gemini API キーは、`GEMINI_KEY_SECRET` から導出した鍵で**暗号化して** DB（`users.gemini_api_key`）に保存します（HMAC-SHA256 による CTR 方式＋改ざん検知。Python 標準ライブラリのみで実装。`app/secretbox.py`）。DB ファイルやそのバックアップだけが漏れてもキーは読めません。
 > - 秘密鍵は DB とは別に管理してください（DB と同じボリュームやバックアップに入れない）。生成例: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
 > - 秘密鍵を変更・紛失すると、登録済みのキーは復号できなくなり「未設定」扱いになります（各ユーザーが再登録すれば使えます）。
 > - 旧バージョン（平文で保存していた DB バージョン6）から更新するときは、平文のキーが残っていれば起動時に暗号化して平文の列を削除します。このとき `GEMINI_KEY_SECRET` が未設定だと起動を中止します。
+
+#### ローカル LLM を使って動作確認する（コンテナを使わない場合）
+
+アプリをコンテナを使わずに起動し、AI 要約をローカル LLM（Ollama）で試す手順です。
+
+1. Ollama をインストールする（初回のみ）。Linux では公式のインストーラで systemd サービス `ollama.service` として登録され、`127.0.0.1:11434` で自動的に起動します。
+
+   ```bash
+   curl -fsSL https://ollama.com/install.sh | sh
+   ```
+
+   サービスとして常駐させない場合は、ターミナルで `ollama serve` を実行して起動します（Ctrl+C で停止）。
+
+2. モデルを取得する（初回のみ）。
+
+   ```bash
+   ollama pull gemma3:1b
+   ollama list          # 取得済みのモデルを確認
+   ```
+
+3. 接続先を指定してアプリを起動する。
+
+   ```bash
+   DIARY_LLM_URL=http://127.0.0.1:11434 python3 app/server.py --port 8001 --db /tmp/test.db
+   ```
+
+   起動時のログに「AI 要約: ローカル LLM（http://127.0.0.1:11434、モデル gemma3:1b）を使います」と出れば有効です。別のモデルを試す場合は、`ollama pull` したうえで `LLM_MODEL=<モデル名>` も付けて起動します。
+
+Ollama をインストールしたくない場合は、Ollama だけをコンテナで動かし、アプリは直接起動します（ポートは `127.0.0.1` のみに公開）。
+
+```bash
+podman run -d --rm --name dev-ollama -p 127.0.0.1:11434:11434 -v dev-ollama:/root/.ollama docker.io/ollama/ollama:latest
+podman exec dev-ollama ollama pull gemma3:1b
+DIARY_LLM_URL=http://127.0.0.1:11434 python3 app/server.py --port 8001 --db /tmp/test.db
+podman stop dev-ollama       # 終わったら停止（モデルはボリューム dev-ollama に残る。不要なら podman volume rm dev-ollama）
+```
+
+Docker の場合は `podman` を `docker` に読み替えてください。
 
 ### Docker Compose で起動
 
@@ -96,6 +137,37 @@ loginctl enable-linger "$USER"   # ログアウト後も動かし続ける場合
 暗号キーを作り直す（`podman secret rm diary-gemini-key-secret` してから deploy）と、登録済みの Gemini API キーは復号できなくなり各ユーザーの再登録が必要になります。
 rootful の場合はスクリプトを使わず、Quadlet 定義を `/etc/containers/systemd/` に配置して `systemctl` を `--user` なしで実行します。
 
+### ローカル LLM（Ollama）のコンテナ
+
+アプリと同じ環境で動くローカル LLM として、[Ollama](https://ollama.com/) の公式イメージ（`docker.io/ollama/ollama`）のコンテナを用意しています。起動は任意で、指定しなければ起動しません。
+アプリの AI 要約に使うには、アプリに環境変数 `DIARY_LLM_URL` を設定します（Docker Compose は `docker/.env` に `DIARY_LLM_URL=http://llm:11434`、Podman は `podman/diary-app.container` の `Environment=DIARY_LLM_URL=http://127.0.0.1:11434` のコメントを外す）。
+
+- Ollama の API には認証が無いため、ホストには公開しません。アプリのコンテナからは、Docker Compose では `http://llm:11434`、Podman では同じ Pod 内の `http://127.0.0.1:11434` で接続できます。
+- 取得したモデルはボリュームに保存されます（Docker Compose は `llm-data`、Podman は `diary-llm_data`。コンテナ内 `/root/.ollama`）。
+- 既定では CPU で動きます。NVIDIA GPU を使う場合は、ホストに NVIDIA Container Toolkit を入れ、`docker/compose.yaml` の `deploy:`、または `podman/diary-llm.container` の `AddDevice=` のコメントを外します。
+- 既定のモデルは `gemma3:1b`（約 0.8GB。CPU でも動く軽量モデル）で、起動時に自動で取得します（取得済みなら差分の確認だけ）。変更するには、Docker Compose は `docker/.env` の `LLM_MODEL`（取得とアプリの両方に効く）、Podman は `LLM_MODEL=<モデル名> podman/deploy.sh` で取得し、`podman/diary-app.container` の `Environment=LLM_MODEL=` も合わせます。
+
+Docker Compose:
+
+```bash
+docker compose -f docker/compose.yaml --profile llm up -d   # アプリと一緒に起動し、llm-init が既定のモデルを取得（docker/.env に COMPOSE_PROFILES=llm と書けば --profile は不要）
+docker compose -f docker/compose.yaml exec llm ollama list  # 取得済みのモデルを確認
+```
+
+Podman（Quadlet）:
+
+| ファイル | 内容 |
+| --- | --- |
+| `podman/diary-llm.container` | ローカル LLM（コンテナ `diary-llm`。Pod `diary` に入る。ヘルスチェック・自動再起動） |
+| `podman/diary-llm_data.volume` | モデル保存用ボリューム `diary-llm_data`（コンテナ内 `/root/.ollama`） |
+
+```bash
+podman/deploy.sh --llm             # アプリに加えて diary-llm も配置・起動し、既定のモデルを取得（以降は --llm なしでも更新される）
+podman exec diary-llm ollama list  # 取得済みのモデルを確認
+```
+
+やめる場合は `~/.config/containers/systemd/` から `diary-llm.container` と `diary-llm_data.volume` を削除して `systemctl --user daemon-reload && systemctl --user restart diary-pod.service` を実行します。
+
 ## 運用（サーバー管理者向け）
 
 ### バックアップ
@@ -107,7 +179,7 @@ rootful の場合はスクリプトを使わず、Quadlet 定義を `/etc/contai
 ### 動作確認・ログ
 
 - `/healthz` が `{"status": "ok"}` を返せば正常です（コンテナは30秒ごとに確認し、異常時は再起動します）。
-- ログ：Podman は `journalctl --user -u diary-app.service`、Docker Compose は `docker compose -f docker/compose.yaml logs app`。AI 要約の失敗の詳細（Gemini API のエラー）や DB の移行結果はログに出ます。
+- ログ：Podman は `journalctl --user -u diary-app.service`（ローカル LLM は `diary-llm.service`）、Docker Compose は `docker compose -f docker/compose.yaml logs app`（ローカル LLM は `logs llm`）。AI 要約の失敗の詳細（Gemini API・ローカル LLM のエラー）や DB の移行結果はログに出ます。
 - ログイン試行制限・要約回数制限はメモリ上にあり、再起動でリセットされます。
 
 ### 管理者のパスワードを忘れた場合
@@ -159,7 +231,7 @@ DB 作成時に管理者ユーザーが自動で作成されます。
 | GET | `/api/history?category=meal\|medicine\|out\|other` | 入力候補（最近のメモ。重複なし・新しい順・最大50件） |
 | GET | `/api/daily-notes?from=&to=` | 期間内の感想（管理者は `&user_id=` で他のユーザーを指定可） |
 | PUT | `/api/daily-notes/{YYYY-MM-DD}` | 感想の保存（空なら削除） |
-| POST | `/api/summarize` | 文章 `{"text": ...}` を本人の API キーで Gemini に要約させ `{"summary": ...}` を返す（保存はしない。キー未登録時は 400） |
+| POST | `/api/summarize` | 文章 `{"text": ...}` を要約させ `{"summary": ...}` を返す（保存はしない）。`DIARY_LLM_URL` 設定時はローカル LLM、未設定時は本人の API キーで Gemini を使う（キー未登録時は 400） |
 | GET | `/api/report.pdf?from=&to=` | 週間帳票 PDF（管理者は `&user_id=` で他のユーザーを指定可） |
 | GET / POST | `/api/users` | ユーザー一覧 / 追加（管理者）。一覧には Gemini API キーの設定状態 `gemini_key`（`set` 設定済み / `unset` 未設定 / `nosecret` サーバーの秘密鍵が未設定で使用不可 / `invalid` 復号できず要再登録）と、設定済みの場合はキーの末尾4文字 `gemini_key_hint` を含む（キー本体は返さない） |
 | PUT / DELETE | `/api/users/{user_id}` | ユーザー更新 / 削除（管理者。`admin` は削除不可） |
@@ -197,7 +269,7 @@ app/                      アプリ本体
   server.py               HTTP サーバー・API・DB スキーマ／マイグレーション
   auth.py                 パスワードハッシュ・セッション・ログイン試行制限
   pdf_report.py           週間帳票 PDF の生成
-  summarize.py            Gemini API による感想の要約
+  summarize.py            Gemini API / ローカル LLM（Ollama）による感想の要約
   secretbox.py            Gemini API キーの暗号化
   index.html              行動記録画面
   login.html              ログイン画面
@@ -206,11 +278,11 @@ app/                      アプリ本体
   MANUAL_ADMIN.html       管理者向けマニュアル（/manual_admin.html でダウンロード。管理者のみ）
 data/                     ローカル実行用の DB 置き場（中身は git 管理外）
 spec/                     設計書（BasicSpecification.md：基本設計書）
-podman/                   Podman Quadlet 定義（.pod / .container / .volume）とビルド・配置スクリプト
+podman/                   Podman Quadlet 定義（.pod / .container / .volume。ローカル LLM の diary-llm を含む）とビルド・配置スクリプト
 docker/                   Docker 用のファイル
   Dockerfile              コンテナイメージ（app/ の中身を /app にコピー。Podman のビルドでも使う）
   Dockerfile.dockerignore ビルド時の除外設定（app/ だけを通すホワイトリスト方式）
-  compose.yaml            Docker Compose 定義
+  compose.yaml            Docker Compose 定義（ローカル LLM の llm サービスはプロファイル llm）
   .env.sample             Docker Compose 用の環境変数のサンプル（docker/.env にコピーして使う）
   build.sh                イメージをビルドする（docker/.env が無ければ .env.sample から作成。秘密鍵は生成した値）
 ```

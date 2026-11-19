@@ -9,6 +9,9 @@
   HOST, PORT, DB_PATH
   TRUST_PROXY=1    … リバースプロキシ配下。X-Forwarded-For / X-Forwarded-Proto を使う
   COOKIE_SECURE=1  … ログインCookieに Secure 属性を常に付ける（HTTPS運用時）
+  DIARY_LLM_URL    … 1日の感想の AI 要約にローカル LLM（Ollama）を使う場合の接続先 URL（例: http://llm:11434）。
+                     設定すると Gemini は使わず、API キーなしで全ユーザーが AI 要約を使える
+  LLM_MODEL        … ローカル LLM で使うモデル（既定: gemma3:1b）
   GEMINI_MODEL     … 1日の感想の AI 要約に使う Gemini のモデル（API キーはユーザーごとに画面から設定する）
   GEMINI_KEY_SECRET … ユーザーの Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。
                      未設定のときは API キーを登録できない（AI 要約以外の機能はそのまま使える）
@@ -653,8 +656,12 @@ class Handler(BaseHTTPRequestHandler):
     def me(self):
         user = self.require_user()
         key = self.gemini_key(user)
-        # キー本体は返さず、設定の有無と末尾4文字（どのキーか見分ける用）だけ返す
-        self.send_json(200, {**user, "gemini_key_set": bool(key), "gemini_key_hint": key[-4:] if key else ""})
+        local = summarize.use_local()
+        # キー本体は返さず、設定の有無と末尾4文字（どのキーか見分ける用）だけ返す。
+        # ローカル LLM のときは API キーなしで要約でき、Gemini の設定は使わない
+        self.send_json(200, {**user, "gemini_key_set": bool(key), "gemini_key_hint": key[-4:] if key else "",
+                             "summarizer": "local" if local else "gemini",
+                             "summarize_enabled": local or bool(key)})
 
     def gemini_key(self, user):
         """本人の Gemini API キーを復号して返す。未設定・復号できない場合は ''"""
@@ -905,10 +912,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"date": date, "comment": comment})
 
     def summarize_comment(self):
-        """感想の本文（保存前の入力中のものでもよい）を、本人の API キーで Gemini に要約させて返す。保存はしない"""
+        """感想の本文（保存前の入力中のものでもよい）を要約させて返す。保存はしない
+
+        DIARY_LLM_URL が設定されていればローカル LLM（API キー不要）、未設定なら本人の API キーで Gemini を使う。
+        """
         user = self.require_user()
-        key = self.gemini_key(user)
-        if not key:
+        key = "" if summarize.use_local() else self.gemini_key(user)
+        if not key and not summarize.use_local():
             raise ValidationError("Gemini の API キーが設定されていません（「Gemini設定」から設定してください）")
         text = self.read_object().get("text")
         if not isinstance(text, str):
@@ -978,7 +988,9 @@ def main():
 
     if GEMINI_SECRET and len(GEMINI_SECRET) < secretbox.MIN_SECRET_LENGTH:
         raise SystemExit(f"GEMINI_KEY_SECRET は{secretbox.MIN_SECRET_LENGTH}文字以上にしてください")
-    if not GEMINI_SECRET:
+    if summarize.use_local():
+        print(f"AI 要約: ローカル LLM（{summarize.LOCAL_URL}、モデル {summarize.LOCAL_MODEL}）を使います", flush=True)
+    elif not GEMINI_SECRET:
         print("注意: GEMINI_KEY_SECRET が未設定のため、Gemini API キーの登録と AI 要約（キー使用）は使えません", flush=True)
 
     DB_PATH = Path(args.db).expanduser().resolve()

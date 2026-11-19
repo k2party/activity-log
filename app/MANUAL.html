@@ -208,6 +208,7 @@
 <section>
 <h2 id="s7">7. 感想を AI で要約する（Gemini設定）</h2>
 <p>長く書いた感想を、Google の AI（Gemini）で短くまとめることができます。この機能を使うには、<strong>自分の Gemini API キー</strong> を登録する必要があります。キーを登録していないと「AI要約」ボタンは表示されません。</p>
+<p class="lead">サーバーがローカル LLM（サーバー内の AI）を使う設定になっている場合は、API キーの登録は不要で、最初から「AI要約」ボタンが表示されます（メニューに「Gemini設定」は表示されません）。このとき感想の文章は Google には送信されません。下の「要約する」から読んでください。</p>
 <h3>API キーを登録する</h3>
 <ol>
 <li><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> で API キーを取得します（Google アカウントが必要です）。</li>
@@ -286,7 +287,7 @@
 <tr><td>時刻を入力するとエラーになる</td><td>00:00〜47:59 の範囲で入力してください。終了時刻は開始時刻より後にしてください</td></tr>
 <tr><td>睡眠が思った日に表示されない</td><td>夜に寝た睡眠は起きた日に記録されます（<a href="#s4">4章</a>）。日付を直すときは「編集」で日付に起きた日を入れてください</td></tr>
 <tr><td>24時間を超える記録を入れたい</td><td>いったん記録してから「編集」で、終了欄に日付と時刻を <code>2026-11-20 08:00</code> の形で入力してください</td></tr>
-<tr><td>「AI要約」ボタンが無い</td><td>Gemini の API キーが登録されていません（<a href="#s7">7章</a>）</td></tr>
+<tr><td>「AI要約」ボタンが無い</td><td>Gemini の API キーが登録されていません（<a href="#s7">7章</a>）。メニューに「Gemini設定」も無い場合は管理者に連絡してください</td></tr>
 <tr><td>AI 要約でエラーになる</td><td>API キーが正しいか「Gemini設定」で確認してください。混み合っている場合は、しばらくしてからお試しください</td></tr>
 <tr><td>PDF の文字が表示されない</td><td>日本語フォントに対応した PDF ビューア（Chrome、Edge、Acrobat Reader など）で開いてください</td></tr>
 <tr><td>古い PDF / CSV が開く</td><td>出力のたびにファイル名が変わります。最新の日時のファイルを開いてください</td></tr>

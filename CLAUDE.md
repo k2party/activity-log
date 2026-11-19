@@ -15,6 +15,7 @@ python3 app/server.py                       # http://127.0.0.1:8000/ （DB: data
 python3 app/server.py --port 8001 --db /tmp/test.db   # 使い捨て DB で動作確認
 docker/build.sh && docker compose -f docker/compose.yaml up -d   # Docker Compose でビルド・起動（127.0.0.1:8000。.env は docker/.env）
 podman/build.sh && podman/deploy.sh   # Podman Quadlet でビルド・配置・起動（暗号キーは未作成時のみ生成）
+docker compose -f docker/compose.yaml --profile llm up -d   # ローカル LLM（Ollama）も起動（Podman は podman/deploy.sh --llm）
 ```
 
 テスト・リンター・ビルドは存在しない。動作確認はサーバーを起動してブラウザ / curl で行う。

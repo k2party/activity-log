@@ -21,6 +21,55 @@ services:
       # Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。docker/.env に GEMINI_KEY_SECRET=... と書く（サンプルは docker/.env.sample）
       # 生成例: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
       GEMINI_KEY_SECRET: ${GEMINI_KEY_SECRET:-}
+      # AI 要約にローカル LLM を使う場合の接続先（llm サービスなら http://llm:11434）。設定すると Gemini は使わない
+      DIARY_LLM_URL: ${DIARY_LLM_URL:-}
+      # ローカル LLM で使うモデル（既定 gemma3:1b。llm-init が取得するモデルと同じ）
+      LLM_MODEL: ${LLM_MODEL:-}
+
+  # ローカル LLM（Ollama）。プロファイル llm を指定したときだけ起動する:
+  #   docker compose -f docker/compose.yaml --profile llm up -d   （または docker/.env に COMPOSE_PROFILES=llm）
+  # 既定のモデル（LLM_MODEL。既定 gemma3:1b）は llm-init が起動時に自動で取得する。別のモデルを手動で取得する場合:
+  #   docker compose -f docker/compose.yaml exec llm ollama pull <モデル名>
+  # アプリの AI 要約に使うには docker/.env に DIARY_LLM_URL=http://llm:11434 と書く（Ollama には認証が無いため、ホストには公開しない）
+  llm:
+    image: ${OLLAMA_IMAGE:-docker.io/ollama/ollama:latest}
+    profiles: ["llm"]
+    restart: unless-stopped
+    volumes:
+      - llm-data:/root/.ollama   # 取得したモデルを永続化
+    environment:
+      # 最後の利用からモデルをメモリに載せておく時間（既定 5m。-1 で常駐）
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-5m}
+    # ホストから直接使う場合だけコメントを外す（127.0.0.1 のみ）
+    #ports:
+    #  - "127.0.0.1:11434:11434"
+    # NVIDIA GPU を使う場合（ホストに NVIDIA Container Toolkit が必要）はコメントを外す
+    #deploy:
+    #  resources:
+    #    reservations:
+    #      devices:
+    #        - driver: nvidia
+    #          count: all
+    #          capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+  # 既定のモデルを取得する1回限りのコンテナ（取得済みなら差分の確認だけで終わる）。llm の起動（ヘルスチェック成功）後に動く
+  llm-init:
+    image: ${OLLAMA_IMAGE:-docker.io/ollama/ollama:latest}
+    profiles: ["llm"]
+    restart: "no"
+    depends_on:
+      llm:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://llm:11434
+    command: ["pull", "${LLM_MODEL:-gemma3:1b}"]   # イメージの ENTRYPOINT は ollama
 
 volumes:
   db-data:
+  llm-data:

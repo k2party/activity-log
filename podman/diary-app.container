@@ -13,6 +13,11 @@ Volume=diary-db_data.volume:/data
 User=10001
 # 感想の AI 要約に使う Gemini のモデルを変える場合（API キーは各ユーザーが画面で登録する）
 #Environment=GEMINI_MODEL=gemini-flash-latest
+# AI 要約にローカル LLM（同じ Pod の diary-llm。podman/deploy.sh --llm で配置）を使う場合はコメントを外す。
+# 設定すると Gemini は使わず、API キーなしで全ユーザーが要約を使える
+#Environment=DIARY_LLM_URL=http://127.0.0.1:11434
+# ローカル LLM で使うモデル（既定 gemma3:1b。変える場合は podman/deploy.sh の LLM_MODEL も合わせる）
+#Environment=LLM_MODEL=gemma3:1b
 # Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。podman/deploy.sh が secret を
 # （無ければ）生成し、コピー時に次の Secret= 行を有効にする。手動で配置する場合は secret を作成してコメントを外す:
 #   python3 -c "import secrets; print(secrets.token_urlsafe(32), end='')" | podman secret create diary-gemini-key-secret -
