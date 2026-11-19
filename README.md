@@ -15,8 +15,7 @@
   | その他 (`other`) | 開始〜終了・内容 |
 - **1日の感想** — 日付ごとに1件（1000文字まで）
 - **感想の AI 要約** — 入力中の感想（50文字以上）を Google Gemini で要約して入力欄に反映（保存前に確認・「元に戻す」可能）
-  - API キー未設定のユーザー：「Geminiで要約」で要約の依頼文をコピーして Gemini（gemini.google.com。ログインしないゲストモードでも可）を開く。Gemini に貼り付けて送信し、返ってきた要約をコピーして「要約を貼り付け」で反映する。感想はユーザーのブラウザから Gemini に送られ、サーバーは関与しない
-  - API キーを設定したユーザー：「AI要約」でサーバーがそのユーザーのキーで Gemini API を呼び出し、要約を直接反映する
+  - API キーを設定したユーザーのみ使える。「AI要約」でサーバーがそのユーザーのキーで Gemini API を呼び出し、要約を直接反映する（API キー未設定のユーザーには「AI要約」ボタンを表示しない）
   - API キーは各ユーザーが画面上部の「Gemini設定」で登録・削除する（[Google AI Studio](https://aistudio.google.com/apikey) で取得）。キーは本人の要約にのみ使われ、画面・API には末尾4文字以外返さない
 - **入力候補** — 最近使ったメモ・行先を候補として表示
 - **週間帳票 PDF** — 指定期間を含む月〜日を1ページ（A4横）として出力
@@ -48,7 +47,7 @@ DB は既定で `data/activity_log.db` に作成されます（`data/` の中身
 | `--db` | `DB_PATH` | `data/activity_log.db` | SQLite DB ファイル（無ければ作成） |
 | — | `TRUST_PROXY=1` | 無効 | リバースプロキシ配下で `X-Forwarded-For` / `X-Forwarded-Proto` を信頼する |
 | — | `COOKIE_SECURE=1` | 無効 | ログイン Cookie に常に `Secure` 属性を付ける（HTTPS 運用時） |
-| — | `GEMINI_KEY_SECRET` | 未設定 | 各ユーザーの Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。未設定のときは API キーを登録できない（「Geminiで要約」など他の機能は使える） |
+| — | `GEMINI_KEY_SECRET` | 未設定 | 各ユーザーの Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。未設定のときは API キーを登録できず、AI 要約は使えない（他の機能は使える） |
 | — | `GEMINI_MODEL` | `gemini-flash-latest` | 要約に使う Gemini のモデル（混み合って 503 等やタイムアウトになったときは `gemini-flash-lite-latest` で1回だけ再試行する） |
 
 > AI 要約を使うと、感想の本文が Google（Gemini）に送信されます。要約は1ユーザーあたり10分間に20回まで。

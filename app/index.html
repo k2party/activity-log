@@ -118,7 +118,6 @@
   .day-note .note-head button.ai { color: #6b3fa0; border-color: #c9b3e6; }
   .day-note .note-head button.ai:disabled { opacity: .6; }
   .day-note .note-error { font-size: .85rem; color: var(--danger); background: #fdecec; border: 1px solid #f3c2c2; border-radius: 6px; padding: 6px 8px; margin-top: 4px; }
-  .day-note .note-hint { font-size: .8rem; color: #6b3fa0; background: #f5f0fb; border-radius: 6px; padding: 6px 8px; margin-bottom: 4px; }
   .day-note textarea { font: inherit; width: 100%; min-height: 4.5em; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
   td.empty-row { color: var(--sub); text-align: center; }
   .empty { color: var(--sub); text-align: center; padding: 24px 0; }
@@ -232,7 +231,7 @@
     <p class="dlg-note">
       <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> で取得したキーを設定すると、
       「AI要約」で感想をその場で要約できます。キーはあなた専用で、ほかのユーザーには使われません。
-      要約する感想は Google に送信されます。未設定のときは「Geminiで要約」（Gemini の画面に貼り付ける方式）を使います。
+      要約する感想は Google に送信されます。未設定のときは AI 要約は使えません。
     </p>
     <div class="dlg-error" id="gemini-error"></div>
     <div class="actions">
@@ -287,18 +286,6 @@
   const SUMMARIZE_MIN = 50;   // AI 要約できる最小文字数（サーバーの summarize.MIN_LENGTH と合わせる）
   let summarizeEnabled = false; // 自分の Gemini API キーを設定済みか（/api/me の gemini_key_set）
   let geminiKeyHint = '';       // 設定済みキーの末尾4文字
-  // API キーが未設定のときは、ブラウザで Gemini（ゲストモードでも可）を開き、コピー＆ペーストで要約する
-  const GEMINI_WEB_URL = 'https://gemini.google.com/app';
-  // 要約の指示（サーバーの summarize.SYSTEM_PROMPT と同じ内容）
-  const SUMMARY_PROMPT = [
-    '次の「1日の感想」を、日本語で簡潔に要約してください。',
-    '- 元の文章の半分以下、かつ200文字以内にする',
-    '- 書き手本人の視点（一人称）・常体のまま、事実と気持ちの要点を残す',
-    '- 元の文章に無い内容を付け加えない',
-    '- 見出し・箇条書き記号・Markdown・前置きは付けず、要約文だけを出力する',
-    '',
-    '---',
-  ].join('\n');
 
   // ---- API ----
   async function api(method, path, body) {
@@ -397,7 +384,6 @@
   const noteEditing = new Set(); // 感想を編集中の日付
   const noteUndo = new Map();   // AI 要約する前の本文（日付 → 本文）。「元に戻す」用
   const noteSummarizing = new Set(); // AI 要約の応答待ちの日付
-  const noteGuest = new Set();  // Gemini の画面を開いて、要約の貼り付け待ちの日付
   const noteErrors = new Map(); // 感想欄のエラー（日付 → メッセージ）。気づきやすいよう感想欄の直下に出す
   let openSleep = null;        // 起床が未入力の最新の睡眠
   let pattern = 'other';
@@ -772,15 +758,10 @@
         <div class="note-head">1日の感想<span class="spacer"></span>
           <span data-count>${text.length}/${MAX_COMMENT}</span>
           ${noteUndo.has(date) ? '<button type="button" data-note-act="undo">元に戻す</button>' : ''}
-          ${summarizeEnabled ? `<button type="button" class="ai" data-note-act="summarize" title="入力中の感想を Google Gemini で要約します（${SUMMARIZE_MIN}文字以上）"${noteSummarizing.has(date) ? ' disabled' : ''}>${noteSummarizing.has(date) ? '要約中…' : 'AI要約'}</button>`
-            : noteGuest.has(date) ? '<button type="button" class="ai" data-note-act="paste">要約を貼り付け</button>'
-            : `<button type="button" class="ai" data-note-act="gemini" title="要約の依頼文をコピーして Gemini を開きます（${SUMMARIZE_MIN}文字以上）">Geminiで要約</button>`}
+          ${summarizeEnabled ? `<button type="button" class="ai" data-note-act="summarize" title="入力中の感想を Google Gemini で要約します（${SUMMARIZE_MIN}文字以上）"${noteSummarizing.has(date) ? ' disabled' : ''}>${noteSummarizing.has(date) ? '要約中…' : 'AI要約'}</button>` : ''}
           ${saved || mode === 'range' ? '<button type="button" data-note-act="cancel">取消</button>' : ''}
           <button type="button" class="primary" data-note-act="save">保存</button>
         </div>
-        ${noteGuest.has(date) ? `<div class="note-hint">要約の依頼文をコピーしました。開いた Gemini の画面に貼り付けて送信し、
-          返ってきた要約をコピーしてから「要約を貼り付け」を押してください（この欄に直接貼り付けても構いません）。
-          <a href="${GEMINI_WEB_URL}" target="_blank" rel="noopener noreferrer">Gemini を開く</a></div>` : ''}
         <textarea maxlength="${MAX_COMMENT}" placeholder="今日1日の感想を入力"></textarea>
         ${noteErrors.has(date) ? `<div class="note-error" role="alert">エラー: ${esc(noteErrors.get(date))}</div>` : ''}`;
       box.querySelector('textarea').value = text;
@@ -950,44 +931,10 @@
     const date = box.dataset.date;
     switch (btn.dataset.noteAct) {
       case 'edit': noteEditing.add(date); render(); focusNote(date); break;
-      case 'cancel': noteEditing.delete(date); noteDrafts.delete(date); noteUndo.delete(date); noteGuest.delete(date); noteErrors.delete(date); render(); break;
-      case 'gemini': {
-        // ポップアップがブロックされないよう、クリック処理の中で同期的に開く
-        const text = box.querySelector('textarea').value.trim();
-        if (text.length < SUMMARIZE_MIN) { noteEditing.add(date); noteDrafts.set(date, text); showNoteError(date, new Error(`要約できるのは${SUMMARIZE_MIN}文字以上の文章です`)); break; }
-        const prompt = `${SUMMARY_PROMPT}\n${text}`;
-        const copied = copyText(prompt);
-        window.open(GEMINI_WEB_URL, '_blank', 'noopener');
-        noteEditing.add(date);
-        noteDrafts.set(date, text);
-        if (!await copied) { showNoteError(date, new Error('依頼文をコピーできませんでした')); break; }
-        noteGuest.add(date);
-        showNoteError(date, null);
-        break;
-      }
-      case 'paste': {
-        let pasted;
-        try {
-          pasted = (await navigator.clipboard.readText()).trim();
-        } catch {
-          showNoteError(date, new Error('クリップボードを読み取れませんでした。要約を感想欄に直接貼り付けてください'), true);
-          break;
-        }
-        if (!pasted || pasted.startsWith(SUMMARY_PROMPT.slice(0, 20))) {
-          showNoteError(date, new Error('Gemini の要約がコピーされていません。Gemini の画面で要約をコピーしてから押してください'));
-          break;
-        }
-        const current = box.querySelector('textarea').value.trim();
-        if (!noteUndo.has(date)) noteUndo.set(date, current);
-        noteDrafts.set(date, pasted.slice(0, MAX_COMMENT));
-        noteGuest.delete(date);
-        showNoteError(date, null, true);
-        break;
-      }
+      case 'cancel': noteEditing.delete(date); noteDrafts.delete(date); noteUndo.delete(date); noteErrors.delete(date); render(); break;
       case 'undo':
         noteDrafts.set(date, noteUndo.get(date) ?? '');
         noteUndo.delete(date);
-        noteGuest.delete(date);
         showNoteError(date, null, true);
         break;
       case 'summarize': {
@@ -1022,29 +969,12 @@
           noteEditing.delete(date);
           noteDrafts.delete(date);
           noteUndo.delete(date);
-          noteGuest.delete(date);
           showNoteError(date, null);
         } catch (err) {
           showNoteError(date, err);
         }
         break;
       }
-    }
-  }
-  /** クリップボードにコピー（http 接続などで Clipboard API が使えない場合は execCommand で代用） */
-  async function copyText(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.select();
-      const ok = document.execCommand('copy');
-      ta.remove();
-      return ok;
     }
   }
   /** 感想欄のエラーを感想欄の直下に表示する（err が null なら消す）。再描画して、見える位置までスクロールする */
@@ -1210,7 +1140,7 @@
       summarizeEnabled = r.gemini_key_set;
       geminiKeyHint = r.gemini_key_hint;
       $('gemini-dialog').close();
-      render();   // 感想欄のボタン（AI要約 / Geminiで要約）を切り替える
+      render();   // 感想欄の「AI要約」ボタンの表示を切り替える
     } catch (err) {
       $('gemini-error').textContent = err.message;
     }
