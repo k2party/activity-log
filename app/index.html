@@ -20,8 +20,23 @@
   h1 { font-size: 1.4rem; margin: 0; }
   header.top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 16px; }
   header.top .spacer { flex: 1; }
-  header.top .user { color: var(--sub); font-size: .9rem; }
   header.top button, header.top a.btn { padding: 4px 10px; font-size: .85rem; }
+  /* 氏名（ユーザID）のメニュー */
+  .user-menu { position: relative; margin-left: auto; }   /* 狭い画面で折り返しても右端に置く */
+  header.top .user { font-size: .9rem; color: var(--text); display: inline-flex; align-items: center; gap: 4px; }
+  .user .caret { color: var(--sub); font-size: .8rem; }
+  .menu {
+    position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 12em;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 4px 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .12); display: flex; flex-direction: column;
+  }
+  header.top .menu > button, header.top .menu > a {   /* header.top button の小さいボタンの指定より優先する */
+    display: block; width: 100%; text-align: left; border: 0; border-radius: 0; background: none;
+    padding: 8px 14px; font-size: .9rem; color: inherit; text-decoration: none; cursor: pointer; white-space: nowrap;
+  }
+  header.top .menu > button:hover, header.top .menu > a:hover, header.top .menu > :focus-visible { background: #f0f2f5; outline: none; }
+  .menu > #logout-btn { color: var(--danger); }
+  .menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
   a.btn { display: inline-block; border: 1px solid var(--border); border-radius: 6px; background: #fff; color: inherit; text-decoration: none; }
   a.btn:hover { background: #f0f2f5; }
   .notice { background: #fff6e5; color: #9a6500; border: 1px solid #f2d9a6; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
@@ -133,13 +148,21 @@
   <header class="top">
     <h1>行動記録メモ</h1>
     <span class="spacer"></span>
-    <span class="user" id="user-name"></span>
-    <button type="button" id="gemini-btn">Gemini設定</button>
-    <button type="button" id="pw-btn">パスワード変更</button>
-    <a class="btn" href="/manual.html" download title="利用マニュアル（HTML）をダウンロード">マニュアル</a>
-    <a class="btn" href="/users" id="users-link" hidden>ユーザ管理</a>
-    <a class="btn" href="/manual_admin.html" id="admin-manual-link" download title="管理者マニュアル（HTML）をダウンロード" hidden>管理者マニュアル</a>
-    <button type="button" id="logout-btn">ログアウト</button>
+    <!-- 氏名（ユーザID）を押すとメニューを開く -->
+    <div class="user-menu">
+      <button type="button" class="user" id="user-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu">
+        <span id="user-name"></span><span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="menu" id="user-menu" role="menu" hidden>
+        <a role="menuitem" href="/users" id="users-link" hidden>ユーザ管理</a>
+        <button type="button" role="menuitem" id="gemini-btn">Gemini設定</button>
+        <button type="button" role="menuitem" id="pw-btn">パスワード変更</button>
+        <a role="menuitem" href="/manual.html" download title="利用マニュアル（HTML）をダウンロード">マニュアル</a>
+        <a role="menuitem" href="/manual_admin.html" id="admin-manual-link" download title="管理者マニュアル（HTML）をダウンロード" hidden>管理者マニュアル</a>
+        <hr>
+        <button type="button" role="menuitem" id="logout-btn">ログアウト</button>
+      </div>
+    </div>
   </header>
   <div id="initial-pw-notice" class="notice" hidden>
     管理者の初期パスワードのままです。パスワードを変更してください。<button type="button" id="notice-pw-btn">変更する</button>
@@ -1174,6 +1197,30 @@
       $('pw-error').textContent = err.message;
     }
   };
+  // ---- 氏名（ユーザID）のメニュー ----
+  const menuItems = () => [...$('user-menu').querySelectorAll('[role=menuitem]')].filter(el => !el.hidden);
+  function setMenu(open, focus = false) {
+    $('user-menu').hidden = !open;
+    $('user-menu-btn').setAttribute('aria-expanded', String(open));
+    if (open && focus) menuItems()[0]?.focus();
+  }
+  $('user-menu-btn').onclick = () => setMenu($('user-menu').hidden);
+  $('user-menu-btn').onkeydown = (ev) => { if (ev.key === 'ArrowDown') { ev.preventDefault(); setMenu(true, true); } };
+  // 項目を選んだら閉じる（ダイアログ・ダウンロード・ログアウトはそれぞれの処理が続けて動く）
+  $('user-menu').addEventListener('click', (ev) => { if (ev.target.closest('[role=menuitem]')) setMenu(false); });
+  $('user-menu').onkeydown = (ev) => {
+    const items = menuItems(), i = items.indexOf(document.activeElement);
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      items[(i + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (ev.key === 'Escape') {
+      setMenu(false);
+      $('user-menu-btn').focus();
+    }
+  };
+  // メニューの外を押したら閉じる
+  document.addEventListener('click', (ev) => { if (!ev.target.closest('.user-menu')) setMenu(false); });
+
   $('logout-btn').onclick = async () => {
     try { await api('POST', '/api/logout'); } catch { /* 失敗してもログイン画面へ */ }
     sessionStorage.removeItem(INITIAL_PW_KEY);

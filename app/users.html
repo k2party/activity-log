@@ -41,7 +41,44 @@
   .hint { font-size: .8rem; color: var(--sub); margin-top: 8px; }
   .error { background: #fdecec; color: var(--danger); border: 1px solid #f3c2c2; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
   .ok { background: #eaf7ef; color: #1f7a4a; border: 1px solid #bfe5cd; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
-  @media (max-width: 600px) { .add-form { grid-template-columns: 1fr; } }
+  .tag { white-space: nowrap; }
+  th.gemini { white-space: nowrap; }
+  @media (max-width: 600px) {
+    .add-form { grid-template-columns: 1fr; }
+    /* ユーザー一覧：スマホ幅では1ユーザー＝1枚のカード（見出し行は隠し、各項目の前に見出しを出す） */
+    .user-table thead { display: none; }
+    .user-table, .user-table tbody, .user-table tr, .user-table td { display: block; width: 100%; }
+    .user-table tr { border-bottom: 1px solid var(--border); padding: 10px 0; }
+    .user-table td { border: 0; padding: 4px 0; }
+    .user-table td[data-label] { display: grid; grid-template-columns: 8.5em 1fr; align-items: center; gap: 8px; }
+    .user-table td[data-label]::before { content: attr(data-label); font-size: .8rem; color: var(--sub); }
+    .user-table td.uid { font-weight: bold; }
+    .user-table td.ops { text-align: right; padding-top: 6px; }
+  }
+  /* 氏名（ユーザID）のメニュー（行動記録画面と同じ） */
+  .user-menu { position: relative; margin-left: auto; }
+  header.top .user { padding: 4px 10px; font-size: .9rem; display: inline-flex; align-items: center; gap: 4px; }
+  .user .caret { color: var(--sub); font-size: .8rem; }
+  .menu {
+    position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 12em;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 4px 0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, .12); display: flex; flex-direction: column;
+  }
+  .menu > button, .menu > a {
+    display: block; width: 100%; text-align: left; border: 0; border-radius: 0; background: none;
+    padding: 8px 14px; font-size: .9rem; color: inherit; text-decoration: none; cursor: pointer; white-space: nowrap;
+  }
+  .menu > button:hover, .menu > a:hover, .menu > :focus-visible { background: #f0f2f5; outline: none; }
+  .menu > #logout-btn { color: var(--danger); }
+  .menu hr { border: 0; border-top: 1px solid var(--border); margin: 4px 0; }
+  /* パスワード変更ダイアログ（行動記録画面と同じ） */
+  dialog { border: 1px solid var(--border); border-radius: 10px; padding: 20px; width: min(420px, 92vw); }
+  dialog::backdrop { background: rgba(0, 0, 0, .3); }
+  dialog h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  dialog form { display: grid; grid-template-columns: auto 1fr; gap: 10px 12px; align-items: center; }
+  dialog label { font-size: .9rem; color: var(--sub); }
+  dialog .dlg-error { grid-column: 1 / -1; color: var(--danger); font-size: .9rem; }
+  dialog .actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 </head>
 <body>
@@ -49,8 +86,20 @@
   <header class="top">
     <h1>ユーザ管理</h1>
     <span class="spacer"></span>
-    <a class="btn" href="/manual_admin.html" download title="管理者マニュアル（HTML）をダウンロード">管理者マニュアル</a>
-    <a class="btn" href="/">行動記録に戻る</a>
+    <!-- 氏名（ユーザID）を押すとメニューを開く（行動記録画面と同じ。「ユーザ管理」の代わりに「行動記録」） -->
+    <div class="user-menu">
+      <button type="button" class="user" id="user-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu">
+        <span id="user-name"></span><span class="caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="menu" id="user-menu" role="menu" hidden>
+        <a role="menuitem" href="/">行動記録</a>
+        <button type="button" role="menuitem" id="pw-btn">パスワード変更</button>
+        <a role="menuitem" href="/manual.html" download title="利用マニュアル（HTML）をダウンロード">マニュアル</a>
+        <a role="menuitem" href="/manual_admin.html" download title="管理者マニュアル（HTML）をダウンロード">管理者マニュアル</a>
+        <hr>
+        <button type="button" role="menuitem" id="logout-btn">ログアウト</button>
+      </div>
+    </div>
   </header>
   <div id="error" class="error" hidden></div>
   <div id="ok" class="ok" hidden></div>
@@ -68,14 +117,32 @@
 
   <section class="card">
     <h2>ユーザー一覧</h2>
-    <table>
-      <thead><tr><th>ユーザID</th><th>氏名</th><th>新しいパスワード</th><th>Gemini<br>API キー</th><th></th></tr></thead>
+    <table class="user-table">
+      <thead><tr><th>ユーザID</th><th>氏名</th><th>新しいパスワード</th><th class="gemini">Gemini<br>API キー</th><th></th></tr></thead>
       <tbody id="list"></tbody>
     </table>
     <div class="hint">パスワードを変更するとき以外は「新しいパスワード」は空欄のままにしてください。パスワードを変更すると、そのユーザーは再ログインが必要になります。<br>
-      Gemini API キーは各ユーザーが行動記録画面の「Gemini設定」で登録します。「使用不可」はサーバーに秘密鍵（GEMINI_KEY_SECRET）が設定されていない状態、「要再登録」は秘密鍵が変わったなどで登録済みのキーを復号できない状態（本人が再登録すると使えます）です。</div>
+      Gemini API キーは各ユーザーが行動記録画面の氏名（ユーザID）のメニューの「Gemini設定」で登録します。「使用不可」はサーバーに秘密鍵（GEMINI_KEY_SECRET）が設定されていない状態、「要再登録」は秘密鍵が変わったなどで登録済みのキーを復号できない状態（本人が再登録すると使えます）です。</div>
   </section>
 </main>
+
+<dialog id="pw-dialog">
+  <h2>パスワード変更</h2>
+  <form id="pw-form" method="dialog" autocomplete="off" novalidate>
+    <label for="pw-current">現在のパスワード</label>
+    <input type="password" id="pw-current" autocomplete="current-password" required>
+    <label for="pw-new">新しいパスワード</label>
+    <input type="password" id="pw-new" autocomplete="new-password" minlength="8" maxlength="128" required placeholder="8文字以上">
+    <label for="pw-confirm">新しいパスワード（確認）</label>
+    <input type="password" id="pw-confirm" autocomplete="new-password" required>
+    <div class="dlg-error" id="pw-error"></div>
+    <div class="actions">
+      <button type="button" id="pw-cancel">キャンセル</button>
+      <button type="submit" class="primary">変更する</button>
+    </div>
+  </form>
+</dialog>
+
 <script>
 (() => {
   // ユーザ一覧 API の gemini_key（set / unset / nosecret / invalid）の表示。set は "..."＋末尾4文字
@@ -114,10 +181,10 @@
         const tr = document.createElement('tr');
         tr.dataset.id = u.user_id;
         tr.innerHTML = `
-          <td>${esc(u.user_id)}${u.is_admin ? '<span class="tag">管理者</span>' : ''}</td>
-          <td><input type="text" data-f="name" maxlength="50"></td>
-          <td><input type="password" data-f="password" maxlength="128" autocomplete="new-password" placeholder="変更時のみ入力"></td>
-          <td class="gemini">${u.gemini_key === 'set' ? esc('...' + (u.gemini_key_hint || '')) : GEMINI_STATUS[u.gemini_key] ?? ''}</td>
+          <td class="uid">${esc(u.user_id)}${u.is_admin ? '<span class="tag">管理者</span>' : ''}</td>
+          <td data-label="氏名"><input type="text" data-f="name" maxlength="50" aria-label="氏名"></td>
+          <td data-label="新しいパスワード"><input type="password" data-f="password" maxlength="128" autocomplete="new-password" placeholder="変更時のみ入力" aria-label="新しいパスワード"></td>
+          <td class="gemini" data-label="Gemini API キー">${u.gemini_key === 'set' ? esc('...' + (u.gemini_key_hint || '')) : GEMINI_STATUS[u.gemini_key] ?? ''}</td>
           <td class="ops">
             <button data-act="save">保存</button>
             ${u.is_admin ? '' : '<button data-act="del" class="danger">削除</button>'}
@@ -167,6 +234,52 @@
     } catch (err) {
       message('error', err.message);
     }
+  };
+
+  // ---- 氏名（ユーザID）のメニュー・パスワード変更・ログアウト（行動記録画面と同じ） ----
+  const INITIAL_PW_KEY = 'alog.initialPassword';
+  api('GET', '/api/me').then(me => { $('user-name').textContent = `${me.name}（${me.user_id}）`; }).catch(() => {});
+
+  const menuItems = () => [...$('user-menu').querySelectorAll('[role=menuitem]')].filter(el => !el.hidden);
+  function setMenu(open, focus = false) {
+    $('user-menu').hidden = !open;
+    $('user-menu-btn').setAttribute('aria-expanded', String(open));
+    if (open && focus) menuItems()[0]?.focus();
+  }
+  $('user-menu-btn').onclick = () => setMenu($('user-menu').hidden);
+  $('user-menu-btn').onkeydown = (ev) => { if (ev.key === 'ArrowDown') { ev.preventDefault(); setMenu(true, true); } };
+  $('user-menu').addEventListener('click', (ev) => { if (ev.target.closest('[role=menuitem]')) setMenu(false); });
+  $('user-menu').onkeydown = (ev) => {
+    const items = menuItems(), i = items.indexOf(document.activeElement);
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      items[(i + (ev.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+    } else if (ev.key === 'Escape') {
+      setMenu(false);
+      $('user-menu-btn').focus();
+    }
+  };
+  document.addEventListener('click', (ev) => { if (!ev.target.closest('.user-menu')) setMenu(false); });
+
+  $('pw-btn').onclick = () => { $('pw-form').reset(); $('pw-error').textContent = ''; $('pw-dialog').showModal(); };
+  $('pw-cancel').onclick = () => $('pw-dialog').close();
+  $('pw-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const cur = $('pw-current').value, nw = $('pw-new').value;
+    if (nw !== $('pw-confirm').value) { $('pw-error').textContent = '新しいパスワード（確認）が一致しません'; return; }
+    try {
+      await api('PUT', '/api/me/password', { current_password: cur, new_password: nw });
+      sessionStorage.removeItem(INITIAL_PW_KEY);   // 行動記録画面の「初期パスワードのまま」の通知を消す
+      $('pw-dialog').close();
+      message('ok', 'パスワードを変更しました');
+    } catch (err) {
+      $('pw-error').textContent = err.message;
+    }
+  };
+  $('logout-btn').onclick = async () => {
+    try { await api('POST', '/api/logout'); } catch { /* 失敗してもログイン画面へ */ }
+    sessionStorage.removeItem(INITIAL_PW_KEY);
+    location.href = '/login';
   };
 
   load();
