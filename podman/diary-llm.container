@@ -1,0 +1,29 @@
+# ローカル LLM（Ollama）（Podman Quadlet）
+# 配置・起動: podman/deploy.sh --llm（一度配置すれば、以降の podman/deploy.sh でも更新される）
+# 既定のモデル（gemma3:1b。podman/deploy.sh の LLM_MODEL）は podman/deploy.sh が起動後に自動で取得する。
+# 別のモデルを手動で取得する場合: podman exec diary-llm ollama pull <モデル名>
+# アプリの AI 要約に使うには diary-app.container の Environment=DIARY_LLM_URL=http://127.0.0.1:11434 を有効にする
+# （Ollama には認証が無いため、Pod の外には公開しない）
+[Unit]
+Description=行動記録メモ ローカルLLM（Ollama）
+
+[Container]
+ContainerName=diary-llm
+Image=docker.io/ollama/ollama:latest
+Pod=diary.pod
+# 取得したモデルを永続化
+Volume=diary-llm_data.volume:/root/.ollama
+# 最後の利用からモデルをメモリに載せておく時間（既定 5m。-1 で常駐）
+Environment=OLLAMA_KEEP_ALIVE=5m
+# NVIDIA GPU を使う場合（ホストに NVIDIA Container Toolkit と CDI 設定が必要）はコメントを外す
+#AddDevice=nvidia.com/gpu=all
+HealthCmd=ollama list
+HealthInterval=30s
+HealthTimeout=5s
+HealthStartPeriod=10s
+HealthRetries=3
+
+[Service]
+Restart=always
+# 初回はイメージの取得に時間がかかるため、起動のタイムアウトを延ばす
+TimeoutStartSec=900

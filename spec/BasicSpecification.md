@@ -33,7 +33,7 @@
 | F04 | 睡眠・起床の記録 | 就寝を記録し、起床時に同じ記録へ終了時刻を入れる | 一般 |
 | F05 | 行動記録の一覧・編集・削除 | 1日 / 期間で記録を表示し、行単位で編集・終了入力・削除する | 一般 |
 | F06 | 1日の感想 | 日付ごとに1件の感想を入力・編集・削除する | 一般 |
-| F07 | 感想の AI 要約 | 入力中の感想を Google Gemini で要約して入力欄に反映する | 一般（API キー設定済みのみ） |
+| F07 | 感想の AI 要約 | 入力中の感想を Google Gemini（またはローカル LLM）で要約して入力欄に反映する | 一般（Gemini は API キー設定済みのみ。ローカル LLM は全員） |
 | F08 | Gemini API キー設定 | 自分の API キーを暗号化して登録・削除する | 一般 |
 | F09 | 入力候補 | 最近使ったメモ・行先を候補として表示する | 一般 |
 | F10 | 週間帳票 PDF 出力 | 指定期間を含む月〜日を A4 横1ページの帳票として出力する | 全員（管理者は対象ユーザーを選択） |
@@ -53,7 +53,7 @@
 - データは **SQLite**（1ファイル）に保存する。
 - フロントエンドはビルド工程の無い素の HTML / CSS / JavaScript（各画面1ファイル、JS はインライン）。
 - PDF はライブラリを使わず自前で組み立てる。
-- 外部サービスは、AI 要約で使う Google Gemini API のみ。
+- 外部サービスは、AI 要約で使う Google Gemini API のみ。環境変数 `DIARY_LLM_URL` を設定した場合は Gemini の代わりにローカル LLM（Ollama）を使う（7.1）。
 
 ### 2.2 構成図
 
@@ -83,7 +83,7 @@
 | `app/server.py` | HTTP サーバー、ルーティング、API、入力チェック、DB スキーマ定義・マイグレーション |
 | `app/auth.py` | パスワードハッシュ（PBKDF2）、セッショントークン、ログイン試行制限 |
 | `app/pdf_report.py` | 週間帳票 PDF の生成（PDF 書き出し・レイアウト・睡眠の属する日の判定） |
-| `app/summarize.py` | Gemini API による感想の要約、呼び出し回数制限 |
+| `app/summarize.py` | Gemini API / ローカル LLM（Ollama）による感想の要約、呼び出し回数制限 |
 | `app/secretbox.py` | Gemini API キーの可逆暗号化（HMAC-SHA256 による CTR＋改ざん検知） |
 | `app/index.html` | 行動記録画面（入力・一覧・感想・PDF / CSV 出力・各種設定ダイアログ） |
 | `app/login.html` | ログイン画面 |
@@ -192,7 +192,7 @@
 - 1000文字まで。空にして保存すると削除する。
 - 「1日」表示で未入力の日は、最初から入力欄を表示する。
 - 入力中の内容は再描画しても保持する。
-- 「AI要約」ボタンは Gemini API キーを設定済みのユーザーにのみ表示する（未設定のユーザーには要約手段を提供しない）。
+- 「AI要約」ボタンは Gemini API キーを設定済みのユーザーにのみ表示する（未設定のユーザーには要約手段を提供しない）。ローカル LLM を使う場合（`DIARY_LLM_URL` 設定時）は全ユーザーに表示し、ヘッダのメニューに「Gemini設定」を表示しない。
   - 50文字以上の入力中の本文を要約し、入力欄を要約結果で置き換える（保存はしない。利用者が確認して保存する）。
   - 要約前の本文は「元に戻す」で復元できる。「元に戻す」を表示している間（要約後、元に戻す・保存・取消をするまで）は「AI要約」ボタンを表示しない（要約の重ねがけを防ぐ）。
   - 要約中に本文が書き換えられた場合は、要約結果を反映しない。
@@ -412,7 +412,7 @@
 | タイムアウト | 1回 20 秒 |
 | 再試行 | 500 / 503 / 504・タイムアウトのときは 1 秒待って `gemini-flash-lite-latest` で1回だけ再試行 |
 
-- **指示（システムプロンプト）**：日本語で簡潔に要約する。元の文章の半分以下かつ200文字以内、書き手本人の視点（一人称）・常体、事実と気持ちの要点を残す、元に無い内容を加えない、見出し・箇条書き・Markdown・前置きを付けない。
+- **指示（システムプロンプト）**：日本語で簡潔に要約する。元の文章の半分以下かつ200文字以内、書き手本人の視点（一人称）で事実と気持ちの要点を残す、文末は敬体（です・ます調）にそろえる、元に無い内容を加えない、見出し・箇条書き・Markdown・前置きを付けない。
 - **エラー時の扱い**：
 
   | 状況 | 応答 | 画面のメッセージ（要旨） |
@@ -424,6 +424,23 @@
   | 応答が空（ブロック等） | 502 | 要約を生成できない |
 
 - 感想の本文は Google に送信される（Gemini 設定画面で利用者に明示する）。
+
+### 7.1 ローカル LLM（Ollama）
+
+環境変数 `DIARY_LLM_URL` を設定して起動した場合は、Gemini の代わりにローカル LLM で要約する（Gemini の API キー・秘密鍵は使わない）。
+
+| 項目 | 内容 |
+| --- | --- |
+| エンドポイント | `{DIARY_LLM_URL}/api/chat`（Ollama のチャット API。`stream: false`） |
+| 認証 | なし（接続先はホストに公開しない前提） |
+| モデル | 環境変数 `LLM_MODEL`（既定 `gemma3:1b`） |
+| 生成設定 | `temperature` 0.2、`num_predict` 1024 |
+| タイムアウト | 50 秒（再試行なし） |
+| 指示 | Gemini と同じシステムプロンプト |
+
+- 利用できるユーザー：全ユーザー（API キーの登録は不要）。回数制限は Gemini と同じ。
+- エラー時はいずれも 502：モデルが無い（404）、その他の HTTP エラー、タイムアウト、接続できない、応答が不正・空。詳細はサーバーログに出す。
+- 感想の本文は指定したローカル LLM にのみ送信され、Google には送信されない。
 
 ---
 
@@ -536,7 +553,7 @@
 | A01 | GET | `/healthz` | なし | ヘルスチェック `{"status":"ok"}` |
 | A02 | POST | `/api/login` | なし | ログイン。`{user_id, password}` → ユーザー情報＋`initial_password`、Cookie 発行 |
 | A03 | POST | `/api/logout` | なし | ログアウト（セッション削除・Cookie 消去） |
-| A04 | GET | `/api/me` | ログイン | 自分の情報 `{user_id, name, is_admin, gemini_key_set, gemini_key_hint}` |
+| A04 | GET | `/api/me` | ログイン | 自分の情報 `{user_id, name, is_admin, gemini_key_set, gemini_key_hint, summarizer, summarize_enabled}`（`summarizer` は `gemini` / `local`、`summarize_enabled` は AI 要約を使えるか） |
 | A05 | PUT | `/api/me/password` | ログイン | `{current_password, new_password}`。他端末のセッションを削除 |
 | A06 | PUT | `/api/me/gemini-key` | ログイン | `{api_key}` を暗号化して保存（空なら削除）→ `{gemini_key_set, gemini_key_hint}` |
 | A07 | GET | `/api/activities` | ログイン | 期間にかかる行動記録（期間内に開始、期間前に開始して期間内まで続く、前日 18:00 以降就寝の睡眠）。管理者は `user_id` 指定可 |
@@ -547,7 +564,7 @@
 | A12 | GET | `/api/history?category=` | ログイン | `meal` / `medicine` / `out` / `other` の最近のメモ（重複なし・新しい順・最大50件） |
 | A13 | GET | `/api/daily-notes` | ログイン | 期間内の感想 `[{date, comment}]`。管理者は `user_id` 指定可 |
 | A14 | PUT | `/api/daily-notes/{YYYY-MM-DD}` | ログイン | `{comment}` を保存（空なら削除） |
-| A15 | POST | `/api/summarize` | ログイン（キー設定済み） | `{text}` を要約 → `{summary}`（保存しない。キー未設定は 400） |
+| A15 | POST | `/api/summarize` | ログイン（Gemini はキー設定済み） | `{text}` を要約 → `{summary}`（保存しない。Gemini でキー未設定は 400。ローカル LLM はキー不要） |
 | A16 | GET | `/api/report.pdf` | ログイン | 週間帳票 PDF。管理者は `user_id` 指定可 |
 | A17 | GET | `/api/users` | 管理者 | ユーザー一覧（`admin` が先頭）。`gemini_key`（`set` / `unset` / `nosecret` / `invalid`）・`gemini_key_hint` を含む |
 | A18 | POST | `/api/users` | 管理者 | `{user_id, name, password}` を追加 → 201 |
@@ -573,6 +590,8 @@
 | — | `COOKIE_SECURE` | 無効 | Cookie に常に `Secure` を付ける |
 | — | `GEMINI_KEY_SECRET` | 未設定 | API キー暗号化用の秘密鍵（32文字以上。短いと起動しない） |
 | — | `GEMINI_MODEL` | `gemini-flash-latest` | 要約に使うモデル |
+| — | `DIARY_LLM_URL` | 未設定 | ローカル LLM（Ollama）の接続先 URL。設定すると要約にローカル LLM を使う（http / https 以外は起動しない） |
+| — | `LLM_MODEL` | `gemma3:1b` | ローカル LLM で要約に使うモデル |
 
 ### 10.2 デプロイ
 
@@ -584,7 +603,12 @@
 
 - **Podman Quadlet**：Pod `diary`（`127.0.0.1:8000` を公開）、コンテナ `diary-app`、ボリューム `diary-db_data`（`/data`）。
   - `podman/build.sh`：イメージ `localhost/activity-log-app:latest` をビルドする。
-  - `podman/deploy.sh`：secret `diary-gemini-key-secret` が無ければ生成し（作成済みなら更新しない）、Quadlet 定義を `~/.config/containers/systemd/` にコピーして `diary-pod.service` を（再）起動する。
+  - `podman/deploy.sh`：secret `diary-gemini-key-secret` が無ければ生成し（作成済みなら更新しない）、Quadlet 定義を `~/.config/containers/systemd/` にコピーして `diary-pod.service` を（再）起動する。`--llm` を付けるとローカル LLM のコンテナも配置する（配置済みなら以降は付けなくても更新する）。
+- **ローカル LLM（任意）**：Ollama の公式イメージ（`docker.io/ollama/ollama`）。現時点ではアプリから接続していない（AI 要約は Gemini API）。
+  - Docker Compose：サービス `llm`（プロファイル `llm`。`--profile llm` または `COMPOSE_PROFILES=llm` で起動）、ボリューム `llm-data`。アプリからは `http://llm:11434`。
+  - Podman Quadlet：コンテナ `diary-llm`（Pod `diary` 内）、ボリューム `diary-llm_data`。アプリからは `http://127.0.0.1:11434`。
+  - 既定のモデルは `gemma3:1b`（`LLM_MODEL` で変更可）。Docker Compose は1回限りのサービス `llm-init`、Podman は `podman/deploy.sh` が起動後に自動で取得する。
+  - 認証が無いためホストには公開しない。モデルはボリューム（`/root/.ollama`）に保存する。GPU は任意（設定のコメントを外す）。
 - コンテナは非 root（UID 10001）で動作し、`/healthz` を30秒ごとに確認する。異常終了時は自動で再起動する。
 - SIGTERM で速やかに停止する。
 

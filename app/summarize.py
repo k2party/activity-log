@@ -1,8 +1,11 @@
-"""1日の感想の要約（Google Gemini API。Python標準ライブラリのみ）
+"""1日の感想の要約（Google Gemini API またはローカル LLM（Ollama）。Python標準ライブラリのみ）
 
-API キーはユーザーごとに DB（users.gemini_api_key）に保存したものを使う。
+DIARY_LLM_URL が設定されていればローカル LLM に接続する（API キー不要。全ユーザーが使える）。
+未設定なら Gemini を使い、API キーはユーザーごとに DB（users.gemini_api_key）に保存したものを使う。
 環境変数:
-  GEMINI_MODEL     … 使用するモデル（既定: gemini-flash-latest。過負荷時は gemini-flash-lite-latest で再試行）
+  DIARY_LLM_URL    … ローカル LLM（Ollama）の接続先 URL（例: http://llm:11434）。設定すると Gemini は使わない
+  LLM_MODEL        … ローカル LLM で使うモデル（既定: gemma3:1b）
+  GEMINI_MODEL     … Gemini で使うモデル（既定: gemini-flash-latest。過負荷時は gemini-flash-lite-latest で再試行）
 """
 import json
 import os
@@ -10,6 +13,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 DEFAULT_MODEL = "gemini-flash-latest"
@@ -17,6 +21,8 @@ FALLBACK_MODEL = "gemini-flash-lite-latest"   # 過負荷時の再試行に使�
 OVERLOADED_CODES = (500, 503, 504)
 RETRY_DELAY = 1                    # 秒（再試行前に待つ時間）
 TIMEOUT = 20                       # 秒（1回あたり。再試行を含めてもプロキシの既定 60 秒に収まるようにする）
+LOCAL_TIMEOUT = 50                 # 秒（ローカル LLM。CPU だと遅いため長めにするが、プロキシの既定 60 秒には収める）
+DEFAULT_LOCAL_MODEL = "gemma3:1b"
 MIN_LENGTH = 50                    # これより短い文は要約しない
 RATE_LIMIT = (20, 600)             # 1ユーザーあたり 600 秒間に 20 回まで
 
@@ -25,10 +31,30 @@ SYSTEM_PROMPT = (
     "あなたは日記の要約を手伝うアシスタントです。"
     "ユーザーが書いた「1日の感想」を、日本語で簡潔に要約してください。\n"
     "- 元の文章の半分以下、かつ200文字以内にする\n"
-    "- 書き手本人の視点（一人称）・常体のまま、事実と気持ちの要点を残す\n"
+    "- 書き手本人の視点（一人称）のまま、事実と気持ちの要点を残す\n"
+    "- 文末は「です」「ます」の敬体（です・ます調）にそろえる（元の文章が常体でも敬体に直す）\n"
     "- 元の文章に無い内容を付け加えない\n"
     "- 見出し・箇条書き記号・Markdown・前置きは付けず、要約文だけを出力する"
 )
+
+
+def _local_url():
+    """DIARY_LLM_URL（末尾の / は除く）。未設定は ''。http / https 以外は起動を中止する"""
+    url = os.environ.get("DIARY_LLM_URL", "").strip().rstrip("/")
+    if url:
+        u = urlparse(url)
+        if u.scheme not in ("http", "https") or not u.netloc:
+            raise SystemExit(f"DIARY_LLM_URL は http:// または https:// で始まる URL にしてください: {url}")
+    return url
+
+
+LOCAL_URL = _local_url()
+LOCAL_MODEL = os.environ.get("LLM_MODEL", "").strip() or DEFAULT_LOCAL_MODEL
+
+
+def use_local():
+    """ローカル LLM で要約するか（DIARY_LLM_URL が設定されているか）"""
+    return bool(LOCAL_URL)
 
 
 class SummarizeError(Exception):
@@ -100,11 +126,57 @@ def _request(model, body, key):
         raise SummarizeError("要約サービスの応答が不正です")
 
 
-def summarize(text, key):
-    """感想の本文を、指定された API キーで要約して返す。失敗時は SummarizeError
+def _summarize_local(text):
+    """ローカル LLM（Ollama の /api/chat）で要約する。失敗時は SummarizeError"""
+    body = {
+        "model": LOCAL_MODEL,
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": text}],
+        "stream": False,
+        "options": {"temperature": 0.2, "num_predict": 1024},
+    }
+    req = urllib.request.Request(
+        LOCAL_URL + "/api/chat",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=LOCAL_TIMEOUT) as res:
+            data = json.load(res)
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = json.load(e).get("error", "")
+        except Exception:
+            pass
+        print(f"ローカル LLM エラー {e.code}（{LOCAL_MODEL}）: {detail}", flush=True)
+        if e.code == 404:
+            raise SummarizeError(f"ローカル LLM にモデル（{LOCAL_MODEL}）がありません。管理者に連絡してください")
+        raise SummarizeError(f"ローカル LLM でエラーが発生しました（{e.code}）")
+    except (TimeoutError, urllib.error.URLError, OSError) as e:
+        if isinstance(e, TimeoutError) or isinstance(getattr(e, "reason", None), TimeoutError):
+            print(f"ローカル LLM タイムアウト（{LOCAL_MODEL}）", flush=True)
+            raise SummarizeError("ローカル LLM の要約が時間内に終わりませんでした。しばらくしてから再度お試しください")
+        print(f"ローカル LLM 接続エラー（{LOCAL_URL}）: {e}", flush=True)
+        raise SummarizeError("ローカル LLM に接続できませんでした")
+    except ValueError:
+        raise SummarizeError("ローカル LLM の応答が不正です")
+    summary = ((data.get("message") or {}).get("content") or "").strip() if isinstance(data, dict) else ""
+    if not summary:
+        print(f"ローカル LLM 応答が空: {data.get('done_reason') if isinstance(data, dict) else '不明'}", flush=True)
+        raise SummarizeError("要約を生成できませんでした")
+    return summary
 
-    モデルが過負荷（503 など）やタイムアウトのときは少し待ってから軽量モデル（FALLBACK_MODEL）で1回だけ再試行する。
+
+def summarize(text, key=""):
+    """感想の本文を要約して返す。失敗時は SummarizeError
+
+    DIARY_LLM_URL が設定されていればローカル LLM を使う（key は使わない）。
+    Gemini では指定された API キーを使い、モデルが過負荷（503 など）やタイムアウトのときは
+    少し待ってから軽量モデル（FALLBACK_MODEL）で1回だけ再試行する。
     """
+    if use_local():
+        return _summarize_local(text)
     model = os.environ.get("GEMINI_MODEL", "").strip() or DEFAULT_MODEL
     models = [model] + ([FALLBACK_MODEL] if model != FALLBACK_MODEL else [model])
     body = {

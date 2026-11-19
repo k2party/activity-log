@@ -310,7 +310,8 @@
   const NOTE_LABEL = { meal: 'メモ', medicine: 'メモ', out: '行先', other: '内容' };
   const MAX_COMMENT = 1000;   // 1日の感想の最大文字数
   const SUMMARIZE_MIN = 50;   // AI 要約できる最小文字数（サーバーの summarize.MIN_LENGTH と合わせる）
-  let summarizeEnabled = false; // 自分の Gemini API キーを設定済みか（/api/me の gemini_key_set）
+  let summarizeEnabled = false; // AI 要約を使えるか（/api/me の summarize_enabled。ローカル LLM なら常に可、Gemini はキー設定済みのとき）
+  let summarizerName = 'Google Gemini'; // 要約に使う AI の表示名（/api/me の summarizer が local ならローカル LLM）
   let geminiKeyHint = '';       // 設定済みキーの末尾4文字
 
   // ---- API ----
@@ -783,7 +784,7 @@
       box.innerHTML = `
         <div class="note-head">1日の感想<span class="spacer"></span>
           ${noteUndo.has(date) ? '<button type="button" data-note-act="undo">元に戻す</button>' : ''}
-          ${summarizeEnabled && !noteUndo.has(date) ? `<button type="button" class="ai" data-note-act="summarize" title="入力中の感想を Google Gemini で要約します（${SUMMARIZE_MIN}文字以上）"${noteSummarizing.has(date) ? ' disabled' : ''}>${noteSummarizing.has(date) ? '要約中…' : 'AI要約'}</button>` : ''}
+          ${summarizeEnabled && !noteUndo.has(date) ? `<button type="button" class="ai" data-note-act="summarize" title="入力中の感想を ${summarizerName} で要約します（${SUMMARIZE_MIN}文字以上）"${noteSummarizing.has(date) ? ' disabled' : ''}>${noteSummarizing.has(date) ? '要約中…' : 'AI要約'}</button>` : ''}
           ${saved || mode === 'range' ? '<button type="button" data-note-act="cancel">取消</button>' : ''}
           <button type="button" class="primary" data-note-act="save">保存</button>
         </div>
@@ -1123,8 +1124,12 @@
     $('user-name').textContent = `${me.name}（${me.user_id}）`;
     $('users-link').hidden = !me.is_admin;
     $('admin-manual-link').hidden = !me.is_admin;
-    summarizeEnabled = !!me.gemini_key_set;
+    const local = me.summarizer === 'local';
+    summarizeEnabled = !!me.summarize_enabled;
+    summarizerName = local ? 'ローカル LLM' : 'Google Gemini';
     geminiKeyHint = me.gemini_key_hint || '';
+    // ローカル LLM のときは Gemini の API キーを使わないので「Gemini設定」を出さない
+    $('gemini-btn').hidden = local;
     $('initial-pw-notice').hidden = sessionStorage.getItem(INITIAL_PW_KEY) !== '1';
     if (isAdmin) await setupAdmin();
   }
@@ -1152,8 +1157,8 @@
   $('gemini-btn').onclick = () => {
     $('gemini-form').reset();
     $('gemini-error').textContent = '';
-    $('gemini-status').textContent = summarizeEnabled ? `設定済み（…${geminiKeyHint}）` : '未設定';
-    $('gemini-delete').hidden = !summarizeEnabled;
+    $('gemini-status').textContent = geminiKeyHint ? `設定済み（…${geminiKeyHint}）` : '未設定';
+    $('gemini-delete').hidden = !geminiKeyHint;
     $('gemini-dialog').showModal();
   };
   $('gemini-cancel').onclick = () => $('gemini-dialog').close();
