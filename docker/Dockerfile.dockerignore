@@ -1,12 +1,6 @@
-# docker/Dockerfile 用の除外設定（ビルドコンテキストはリポジトリ直下）。必要なファイルだけを通すホワイトリスト方式
+# docker/Dockerfile 用の除外設定（ビルドコンテキストはリポジトリ直下）。
+# app/ だけを通すホワイトリスト方式（DB の data/、秘密鍵の docker/.env、.git/ などはビルドに渡さない）。
+# app/ の中身はすべてイメージに入るので、アプリ以外のファイル（メモ・テスト用など）は app/ に置かない
 *
-!app/server.py
-!app/auth.py
-!app/pdf_report.py
-!app/summarize.py
-!app/secretbox.py
-!app/index.html
-!app/login.html
-!app/users.html
-!app/MANUAL.html
-!app/MANUAL_ADMIN.html
+!app/
+**/__pycache__

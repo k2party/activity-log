@@ -46,7 +46,7 @@ podman/build.sh && podman/deploy.sh   # Podman Quadlet でビルド・配置・�
 ### デプロイ上の注意
 
 - Docker 用のファイルは `docker/` に集約している（`Dockerfile`・`Dockerfile.dockerignore`・`compose.yaml`・`.env.sample`・`build.sh`）。ビルドコンテキストはリポジトリ直下で、Podman（`podman/build.sh`）も `docker/Dockerfile` を使う。古いイメージの掃除は `docker/Dockerfile` のラベル `activity-log.image=app` で絞った prune で行い、絞り込みなしの `image prune` は使わない（同じホストの他のアプリのイメージを消さないため）。
-- `docker/Dockerfile` は `app/` 内のファイルを**個別に列挙して COPY** しており、`docker/Dockerfile.dockerignore` もホワイトリスト方式。`app/` にファイルを追加したら両方を更新すること。
+- `docker/Dockerfile` は `app/` を**まるごと COPY** し、`docker/Dockerfile.dockerignore` は `app/` だけを通すホワイトリスト方式（`__pycache__` は除外）。`app/` に置いたファイルはすべてイメージに入るので、アプリ以外のファイルは `app/` に置かないこと。
 - コンテナは `TRUST_PROXY=1` でリバースプロキシ配下を想定。Podman Quadlet 定義は `podman/`（名前は `diary`）。
 - README.md にユーザー向けの機能・API 一覧があるので、機能や API を変更したら README も更新する。
 - `spec/BasicSpecification.md` に基本設計書（画面・帳票・業務ルール・DB・API など）があるので、仕様を変更したら README と合わせて設計書も更新する。

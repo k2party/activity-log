@@ -1,5 +1,5 @@
 # 行動記録メモ バックエンド（Python標準ライブラリのみ / SQLite）
-# ビルドコンテキストはリポジトリ直下。除外設定は docker/Dockerfile.dockerignore（ホワイトリスト方式）
+# ビルドコンテキストはリポジトリ直下。除外設定は docker/Dockerfile.dockerignore（app/ だけを通すホワイトリスト方式）
 #   docker compose -f docker/compose.yaml build  /  podman/build.sh
 FROM python:3.14-slim
 
@@ -17,7 +17,8 @@ RUN useradd --system --uid 10001 --no-create-home app \
  && mkdir -p /data && chown app:app /data
 
 WORKDIR /app
-COPY app/server.py app/auth.py app/pdf_report.py app/summarize.py app/secretbox.py app/index.html app/login.html app/users.html app/MANUAL.html app/MANUAL_ADMIN.html ./
+# app/ の中身をまとめてコピーする（__pycache__ などは docker/Dockerfile.dockerignore で除外）
+COPY app/ ./
 
 USER app
 VOLUME ["/data"]

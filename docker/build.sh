@@ -31,4 +31,4 @@ elif grep -q "^GEMINI_KEY_SECRET=$SAMPLE_SECRET\$" "$ENV_FILE"; then
   echo "注意: docker/.env の GEMINI_KEY_SECRET がサンプルの仮のキーのままです。運用を始める前に生成した値に置き換えてください" >&2
   echo "  生成: python3 -c \"import secrets; print(secrets.token_urlsafe(32))\"" >&2
 fi
-echo "起動・反映するには: docker compose -f docker/compose.yaml up -d"
+echo "起動・反映するには: docker compose -f $SCRIPT_DIR/compose.yaml up -d"

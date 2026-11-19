@@ -594,5 +594,5 @@
 - PDF はフォントを埋め込まないため、表示は閲覧側の日本語フォントに依存する（Acrobat / Chrome / Edge / macOS プレビュー等で確認）。
 - 種類（`CATEGORIES`）は `server.py`・`pdf_report.py`・`index.html` と DB の CHECK 制約にそれぞれ定義があり、追加・変更時はすべてを合わせて修正し、マイグレーションを追加する。
 - Docker 用のファイルは `docker/` に集約する（`Dockerfile`・`Dockerfile.dockerignore`・`compose.yaml`・`.env.sample`・`build.sh`）。ビルドコンテキストはリポジトリ直下。
-- `app/` にファイルを追加した場合は、`docker/Dockerfile`（個別に COPY）と `docker/Dockerfile.dockerignore`（ホワイトリスト）の両方を更新する。
+- `docker/Dockerfile` は `app/` をまるごとコピーし、`docker/Dockerfile.dockerignore` は `app/` だけを通す（`__pycache__` は除外）。`app/` に置いたファイルはすべてイメージに入るため、アプリ以外のファイルは置かない。
 - 自動テストは無い。動作確認はサーバーを起動してブラウザ / curl で行う。

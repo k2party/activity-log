@@ -209,7 +209,7 @@ spec/                     設計書（BasicSpecification.md：基本設計書）
 podman/                   Podman Quadlet 定義（.pod / .container / .volume）とビルド・配置スクリプト
 docker/                   Docker 用のファイル
   Dockerfile              コンテナイメージ（app/ の中身を /app にコピー。Podman のビルドでも使う）
-  Dockerfile.dockerignore ビルド時の除外設定（ホワイトリスト方式）
+  Dockerfile.dockerignore ビルド時の除外設定（app/ だけを通すホワイトリスト方式）
   compose.yaml            Docker Compose 定義
   .env.sample             Docker Compose 用の環境変数のサンプル（docker/.env にコピーして使う）
   build.sh                イメージをビルドする（docker/.env が無ければ .env.sample から作成。秘密鍵は生成した値）
