@@ -1,1 +1,3 @@
 __pycache__/
+.env
+diary-db_data.tgz

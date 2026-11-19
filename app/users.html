@@ -34,6 +34,9 @@
   th { font-size: .8rem; color: var(--sub); font-weight: normal; }
   td.ops { text-align: right; white-space: nowrap; }
   td.ops button { padding: 4px 10px; font-size: .85rem; }
+  td.gemini { white-space: nowrap; font-size: .85rem; }
+  td.gemini .muted { color: var(--sub); }
+  td.gemini .warn { color: var(--danger); }
   .tag { font-size: .75rem; background: #eef3fd; color: var(--accent); border-radius: 10px; padding: 1px 8px; margin-left: 6px; }
   .hint { font-size: .8rem; color: var(--sub); margin-top: 8px; }
   .error { background: #fdecec; color: var(--danger); border: 1px solid #f3c2c2; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
@@ -65,14 +68,21 @@
   <section class="card">
     <h2>ユーザー一覧</h2>
     <table>
-      <thead><tr><th>ユーザID</th><th>氏名</th><th>新しいパスワード</th><th></th></tr></thead>
+      <thead><tr><th>ユーザID</th><th>氏名</th><th>新しいパスワード</th><th>Gemini<br>API キー</th><th></th></tr></thead>
       <tbody id="list"></tbody>
     </table>
-    <div class="hint">パスワードを変更するとき以外は「新しいパスワード」は空欄のままにしてください。パスワードを変更すると、そのユーザーは再ログインが必要になります。</div>
+    <div class="hint">パスワードを変更するとき以外は「新しいパスワード」は空欄のままにしてください。パスワードを変更すると、そのユーザーは再ログインが必要になります。<br>
+      Gemini API キーは各ユーザーが行動記録画面の「Gemini設定」で登録します。「使用不可」はサーバーに秘密鍵（GEMINI_KEY_SECRET）が設定されていない状態、「要再登録」は秘密鍵が変わったなどで登録済みのキーを復号できない状態（本人が再登録すると使えます）です。</div>
   </section>
 </main>
 <script>
 (() => {
+  // ユーザ一覧 API の gemini_key（set / unset / nosecret / invalid）の表示。set は "..."＋末尾4文字
+  const GEMINI_STATUS = {
+    unset: '<span class="muted">未設定</span>',
+    nosecret: '<span class="warn" title="登録はあるが、サーバーに秘密鍵（GEMINI_KEY_SECRET）が設定されていないため使えません">使用不可</span>',
+    invalid: '<span class="warn" title="登録はあるが復号できない（サーバーの秘密鍵が変わった等）。本人が再登録すると使えます">要再登録</span>',
+  };
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -106,6 +116,7 @@
           <td>${esc(u.user_id)}${u.is_admin ? '<span class="tag">管理者</span>' : ''}</td>
           <td><input type="text" data-f="name" maxlength="50"></td>
           <td><input type="password" data-f="password" maxlength="128" autocomplete="new-password" placeholder="変更時のみ入力"></td>
+          <td class="gemini">${u.gemini_key === 'set' ? esc('...' + (u.gemini_key_hint || '')) : GEMINI_STATUS[u.gemini_key] ?? ''}</td>
           <td class="ops">
             <button data-act="save">保存</button>
             ${u.is_admin ? '' : '<button data-act="del" class="danger">削除</button>'}

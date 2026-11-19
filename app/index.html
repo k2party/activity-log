@@ -30,6 +30,9 @@
   dialog::backdrop { background: rgba(0, 0, 0, .3); }
   dialog h2 { font-size: 1.1rem; margin: 0 0 12px; }
   dialog form { grid-template-columns: auto 1fr; }
+  dialog .dlg-note { grid-column: 1 / -1; margin: 0; font-size: .8rem; color: var(--sub); }
+  dialog .actions { gap: 8px; }
+  dialog .actions .spacer { flex: 1; }
   dialog .dlg-error { grid-column: 1 / -1; color: var(--danger); font-size: .9rem; }
   .card {
     background: var(--card); border: 1px solid var(--border);
@@ -112,10 +115,18 @@
   .day-note .note-head .spacer { flex: 1; }
   .day-note .note-head button { padding: 2px 10px; font-size: .8rem; }
   .day-note .note-text { white-space: pre-wrap; word-break: break-word; }
+  .day-note .note-head button.ai { color: #6b3fa0; border-color: #c9b3e6; }
+  .day-note .note-head button.ai:disabled { opacity: .6; }
+  .day-note .note-error { font-size: .85rem; color: var(--danger); background: #fdecec; border: 1px solid #f3c2c2; border-radius: 6px; padding: 6px 8px; margin-top: 4px; }
+  .day-note .note-hint { font-size: .8rem; color: #6b3fa0; background: #f5f0fb; border-radius: 6px; padding: 6px 8px; margin-bottom: 4px; }
   .day-note textarea { font: inherit; width: 100%; min-height: 4.5em; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; resize: vertical; }
   td.empty-row { color: var(--sub); text-align: center; }
   .empty { color: var(--sub); text-align: center; padding: 24px 0; }
   .error { background: #fdecec; color: var(--danger); border: 1px solid #f3c2c2; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+  /* 管理者：出力対象ユーザーの選択 */
+  .nav.admin-bar label { font-size: .9rem; color: var(--sub); }
+  .nav.admin-bar select { width: auto; min-width: 12em; }
+  .admin-summary { color: var(--sub); font-size: .9rem; padding: 8px 2px 0; }
 </style>
 </head>
 <body>
@@ -124,6 +135,7 @@
     <h1>行動記録メモ</h1>
     <span class="spacer"></span>
     <span class="user" id="user-name"></span>
+    <button type="button" id="gemini-btn">Gemini設定</button>
     <button type="button" id="pw-btn">パスワード変更</button>
     <a class="btn" href="/users" id="users-link" hidden>ユーザ管理</a>
     <button type="button" id="logout-btn">ログアウト</button>
@@ -133,7 +145,7 @@
   </div>
   <div id="error" class="error" hidden></div>
 
-  <section class="card">
+  <section class="card" id="entry-card">
     <div class="patterns" id="patterns">
       <button type="button" data-p="sleep">🌙<span>睡眠</span></button>
       <button type="button" data-p="meal">🍚<span>食事</span></button>
@@ -179,6 +191,11 @@
   </section>
 
   <section class="card">
+    <!-- 管理者のみ：行動記録は入力せず、任意のユーザーの記録を PDF / CSV で出力する -->
+    <div class="nav admin-bar" id="admin-bar" hidden>
+      <label for="target-user">出力するユーザー</label>
+      <select id="target-user"></select>
+    </div>
     <div class="nav">
       <span class="tabs">
         <button id="mode-day" class="active">1日</button>
@@ -201,8 +218,31 @@
       <button data-preset="lastmonth">先月</button>
     </div>
     <div id="days"></div>
+    <div id="admin-summary" class="admin-summary" hidden></div>
   </section>
 </main>
+
+<dialog id="gemini-dialog">
+  <h2>Gemini 設定（感想の AI 要約）</h2>
+  <form id="gemini-form" method="dialog" autocomplete="off" novalidate>
+    <span>現在のキー</span>
+    <span id="gemini-status"></span>
+    <label for="gemini-key">API キー</label>
+    <input type="password" id="gemini-key" autocomplete="off" spellcheck="false" maxlength="200" placeholder="新しいキーを入力">
+    <p class="dlg-note">
+      <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio</a> で取得したキーを設定すると、
+      「AI要約」で感想をその場で要約できます。キーはあなた専用で、ほかのユーザーには使われません。
+      要約する感想は Google に送信されます。未設定のときは「Geminiで要約」（Gemini の画面に貼り付ける方式）を使います。
+    </p>
+    <div class="dlg-error" id="gemini-error"></div>
+    <div class="actions">
+      <button type="button" id="gemini-delete" class="danger">キーを削除</button>
+      <span class="spacer"></span>
+      <button type="button" id="gemini-cancel">キャンセル</button>
+      <button type="submit" class="primary">保存</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="pw-dialog">
   <h2>パスワード変更</h2>
@@ -244,6 +284,21 @@
   };
   const NOTE_LABEL = { meal: 'メモ', medicine: 'メモ', out: '行先', other: '内容' };
   const MAX_COMMENT = 1000;   // 1日の感想の最大文字数
+  const SUMMARIZE_MIN = 50;   // AI 要約できる最小文字数（サーバーの summarize.MIN_LENGTH と合わせる）
+  let summarizeEnabled = false; // 自分の Gemini API キーを設定済みか（/api/me の gemini_key_set）
+  let geminiKeyHint = '';       // 設定済みキーの末尾4文字
+  // API キーが未設定のときは、ブラウザで Gemini（ゲストモードでも可）を開き、コピー＆ペーストで要約する
+  const GEMINI_WEB_URL = 'https://gemini.google.com/app';
+  // 要約の指示（サーバーの summarize.SYSTEM_PROMPT と同じ内容）
+  const SUMMARY_PROMPT = [
+    '次の「1日の感想」を、日本語で簡潔に要約してください。',
+    '- 元の文章の半分以下、かつ200文字以内にする',
+    '- 書き手本人の視点（一人称）・常体のまま、事実と気持ちの要点を残す',
+    '- 元の文章に無い内容を付け加えない',
+    '- 見出し・箇条書き記号・Markdown・前置きは付けず、要約文だけを出力する',
+    '',
+    '---',
+  ].join('\n');
 
   // ---- API ----
   async function api(method, path, body) {
@@ -340,8 +395,14 @@
   let notes = new Map();       // 1日の感想（日付 → 本文）
   const noteDrafts = new Map(); // 編集中の感想（日付 → 入力中の本文）。再描画しても消えないよう保持
   const noteEditing = new Set(); // 感想を編集中の日付
+  const noteUndo = new Map();   // AI 要約する前の本文（日付 → 本文）。「元に戻す」用
+  const noteSummarizing = new Set(); // AI 要約の応答待ちの日付
+  const noteGuest = new Set();  // Gemini の画面を開いて、要約の貼り付け待ちの日付
+  const noteErrors = new Map(); // 感想欄のエラー（日付 → メッセージ）。気づきやすいよう感想欄の直下に出す
   let openSleep = null;        // 起床が未入力の最新の睡眠
   let pattern = 'other';
+  let isAdmin = false;         // 管理者は入力せず、選択したユーザー（targetUser）の記録を出力する
+  let targetUser = '';
 
   const isSleepingNow = () => {
     if (!openSleep) return false;
@@ -394,6 +455,7 @@
 
   // ---- 取得 ----
   async function reload() {
+    if (isAdmin) return reloadAdmin();
     const [f, t] = [from, to];
     try {
       const [list, dayNotes, sleep, ...histories] = await Promise.all([
@@ -415,6 +477,25 @@
       showError(err);
     }
     render();
+  }
+
+  // 管理者：選択したユーザーの記録だけを取得し、件数を表示する（一覧・入力・感想は使わない）
+  async function reloadAdmin() {
+    const [f, t, u] = [from, to, targetUser];
+    let list = [];
+    try {
+      if (u) list = await api('GET', `/api/activities?from=${f}&to=${t}&user_id=${encodeURIComponent(u)}`);
+      if (f !== from || t !== to || u !== targetUser) return;  // 取得中に期間・ユーザーが変わった
+      showError(null);
+    } catch (err) {
+      showError(err);
+    }
+    fetched = list;
+    render();
+    const n = fetched.map(toRow).filter(r => r.date >= from && r.date <= to).length;
+    const name = $('target-user').selectedOptions[0]?.textContent || '';
+    $('admin-summary').textContent = u ? `${name} の${from === to ? fmtDay(from) : `${fmtDay(from)}〜${fmtDay(to)}`}の記録：${n}件`
+      : '出力できるユーザーがいません。「ユーザ管理」でユーザーを追加してください';
   }
 
   // ==================================================================
@@ -690,10 +771,18 @@
       box.innerHTML = `
         <div class="note-head">1日の感想<span class="spacer"></span>
           <span data-count>${text.length}/${MAX_COMMENT}</span>
+          ${noteUndo.has(date) ? '<button type="button" data-note-act="undo">元に戻す</button>' : ''}
+          ${summarizeEnabled ? `<button type="button" class="ai" data-note-act="summarize" title="入力中の感想を Google Gemini で要約します（${SUMMARIZE_MIN}文字以上）"${noteSummarizing.has(date) ? ' disabled' : ''}>${noteSummarizing.has(date) ? '要約中…' : 'AI要約'}</button>`
+            : noteGuest.has(date) ? '<button type="button" class="ai" data-note-act="paste">要約を貼り付け</button>'
+            : `<button type="button" class="ai" data-note-act="gemini" title="要約の依頼文をコピーして Gemini を開きます（${SUMMARIZE_MIN}文字以上）">Geminiで要約</button>`}
           ${saved || mode === 'range' ? '<button type="button" data-note-act="cancel">取消</button>' : ''}
           <button type="button" class="primary" data-note-act="save">保存</button>
         </div>
-        <textarea maxlength="${MAX_COMMENT}" placeholder="今日1日の感想を入力"></textarea>`;
+        ${noteGuest.has(date) ? `<div class="note-hint">要約の依頼文をコピーしました。開いた Gemini の画面に貼り付けて送信し、
+          返ってきた要約をコピーしてから「要約を貼り付け」を押してください（この欄に直接貼り付けても構いません）。
+          <a href="${GEMINI_WEB_URL}" target="_blank" rel="noopener noreferrer">Gemini を開く</a></div>` : ''}
+        <textarea maxlength="${MAX_COMMENT}" placeholder="今日1日の感想を入力"></textarea>
+        ${noteErrors.has(date) ? `<div class="note-error" role="alert">エラー: ${esc(noteErrors.get(date))}</div>` : ''}`;
       box.querySelector('textarea').value = text;
     } else {
       box.innerHTML = `
@@ -861,7 +950,69 @@
     const date = box.dataset.date;
     switch (btn.dataset.noteAct) {
       case 'edit': noteEditing.add(date); render(); focusNote(date); break;
-      case 'cancel': noteEditing.delete(date); noteDrafts.delete(date); render(); break;
+      case 'cancel': noteEditing.delete(date); noteDrafts.delete(date); noteUndo.delete(date); noteGuest.delete(date); noteErrors.delete(date); render(); break;
+      case 'gemini': {
+        // ポップアップがブロックされないよう、クリック処理の中で同期的に開く
+        const text = box.querySelector('textarea').value.trim();
+        if (text.length < SUMMARIZE_MIN) { noteEditing.add(date); noteDrafts.set(date, text); showNoteError(date, new Error(`要約できるのは${SUMMARIZE_MIN}文字以上の文章です`)); break; }
+        const prompt = `${SUMMARY_PROMPT}\n${text}`;
+        const copied = copyText(prompt);
+        window.open(GEMINI_WEB_URL, '_blank', 'noopener');
+        noteEditing.add(date);
+        noteDrafts.set(date, text);
+        if (!await copied) { showNoteError(date, new Error('依頼文をコピーできませんでした')); break; }
+        noteGuest.add(date);
+        showNoteError(date, null);
+        break;
+      }
+      case 'paste': {
+        let pasted;
+        try {
+          pasted = (await navigator.clipboard.readText()).trim();
+        } catch {
+          showNoteError(date, new Error('クリップボードを読み取れませんでした。要約を感想欄に直接貼り付けてください'), true);
+          break;
+        }
+        if (!pasted || pasted.startsWith(SUMMARY_PROMPT.slice(0, 20))) {
+          showNoteError(date, new Error('Gemini の要約がコピーされていません。Gemini の画面で要約をコピーしてから押してください'));
+          break;
+        }
+        const current = box.querySelector('textarea').value.trim();
+        if (!noteUndo.has(date)) noteUndo.set(date, current);
+        noteDrafts.set(date, pasted.slice(0, MAX_COMMENT));
+        noteGuest.delete(date);
+        showNoteError(date, null, true);
+        break;
+      }
+      case 'undo':
+        noteDrafts.set(date, noteUndo.get(date) ?? '');
+        noteUndo.delete(date);
+        noteGuest.delete(date);
+        showNoteError(date, null, true);
+        break;
+      case 'summarize': {
+        const text = box.querySelector('textarea').value.trim();
+        if (text.length < SUMMARIZE_MIN) { noteEditing.add(date); noteDrafts.set(date, text); showNoteError(date, new Error(`要約できるのは${SUMMARIZE_MIN}文字以上の文章です`)); break; }
+        noteEditing.add(date);          // 1日表示の未入力欄でも、要約中・要約後は編集状態を保つ
+        noteDrafts.set(date, text);
+        noteSummarizing.add(date);
+        noteErrors.delete(date);
+        render();
+        let failure = null;
+        try {
+          const { summary } = await api('POST', '/api/summarize', { text });
+          // 要約中にユーザーが本文を書き換えていたら上書きしない
+          if ((noteDrafts.get(date) ?? '').trim() !== text) throw new Error('要約中に感想が変更されたため、要約結果を反映しませんでした');
+          if (!noteUndo.has(date)) noteUndo.set(date, text);
+          noteDrafts.set(date, summary);
+        } catch (err) {
+          failure = err;   // 要約 API の失敗（軽量モデルでの再試行も失敗した場合を含む）
+        } finally {
+          noteSummarizing.delete(date);
+          showNoteError(date, failure, true);
+        }
+        break;
+      }
       case 'save': {
         const comment = box.querySelector('textarea').value.trim();
         btn.disabled = true;
@@ -870,15 +1021,39 @@
           if (comment) notes.set(date, comment); else notes.delete(date);
           noteEditing.delete(date);
           noteDrafts.delete(date);
-          showError(null);
-          render();
+          noteUndo.delete(date);
+          noteGuest.delete(date);
+          showNoteError(date, null);
         } catch (err) {
-          showError(err);
-          btn.disabled = false;
+          showNoteError(date, err);
         }
         break;
       }
     }
+  }
+  /** クリップボードにコピー（http 接続などで Clipboard API が使えない場合は execCommand で代用） */
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand('copy');
+      ta.remove();
+      return ok;
+    }
+  }
+  /** 感想欄のエラーを感想欄の直下に表示する（err が null なら消す）。再描画して、見える位置までスクロールする */
+  function showNoteError(date, err, focus = false) {
+    showError(null);
+    if (err) noteErrors.set(date, err.message || String(err)); else noteErrors.delete(date);
+    render();
+    if (focus) focusNote(date);   // フォーカスしてからスクロールし、エラーが画面外に出ないようにする
+    if (err) document.querySelector(`.day-note[data-date="${date}"] .note-error`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
   const focusNote = (date) => document.querySelector(`.day-note[data-date="${date}"] textarea`)?.focus();
   // 入力中の感想を保持（1分ごとの再描画などで消えないように）
@@ -947,11 +1122,14 @@
   // ---- PDF帳票（表示中の期間を含む月〜日の週ごと・A4横・1週1ページ） ----
   $('pdf-btn').onclick = () => {
     // 毎回異なる URL にして、ブラウザ・ダウンロード管理が過去の PDF を再利用しないようにする（主に Android 対策）
-    window.open(`/api/report.pdf?from=${from}&to=${to}&_=${Date.now()}`, '_blank');
+    if (isAdmin && !targetUser) { alert('出力するユーザーを選んでください'); return; }
+    const u = isAdmin ? `&user_id=${encodeURIComponent(targetUser)}` : '';
+    window.open(`/api/report.pdf?from=${from}&to=${to}${u}&_=${Date.now()}`, '_blank');
   };
 
   // ---- CSV出力（表示中の期間に属する記録。日付は記録が属する日＝一覧・帳票と同じ基準日） ----
   $('export-btn').onclick = () => {
+    if (isAdmin && !targetUser) { alert('出力するユーザーを選んでください'); return; }
     const rows = fetched.map(toRow).filter(r => r.date >= from && r.date <= to)
       .sort((a, b) => a.date.localeCompare(b.date) || a.startAbs - b.startAbs || a.id - b.id);
     if (!rows.length) { alert('この期間の記録はありません'); return; }
@@ -968,7 +1146,9 @@
     const j = new Date(Date.now() + 9 * 3600000);
     const stamp = `${j.getUTCFullYear()}${pad(j.getUTCMonth() + 1)}${pad(j.getUTCDate())}`
       + `-${pad(j.getUTCHours())}${pad(j.getUTCMinutes())}${pad(j.getUTCSeconds())}`;
-    a.download = `行動記録_${from === to ? from : `${from}_${to}`}_${stamp}.csv`;
+    // 管理者が他のユーザーを出力するときはユーザIDも付ける（PDF と同じ）
+    const who = isAdmin && targetUser !== myUserId ? `${targetUser}_` : '';
+    a.download = `行動記録_${who}${from === to ? from : `${from}_${to}`}_${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -983,12 +1163,66 @@
   resetForm();
   // ---- ログインユーザー・パスワード変更・ログアウト ----
   const INITIAL_PW_KEY = 'alog.initialPassword';
+  let myUserId = '';
   async function loadMe() {
     const me = await api('GET', '/api/me');
+    myUserId = me.user_id;
+    isAdmin = !!me.is_admin;
     $('user-name').textContent = `${me.name}（${me.user_id}）`;
     $('users-link').hidden = !me.is_admin;
+    summarizeEnabled = !!me.gemini_key_set;
+    geminiKeyHint = me.gemini_key_hint || '';
     $('initial-pw-notice').hidden = sessionStorage.getItem(INITIAL_PW_KEY) !== '1';
+    if (isAdmin) await setupAdmin();
   }
+  // 管理者：入力欄・一覧・Gemini設定を隠し、出力するユーザーの選択欄を出す
+  async function setupAdmin() {
+    ['entry-card', 'days', 'gemini-btn'].forEach(id => { $(id).hidden = true; });
+    $('admin-bar').hidden = false;
+    $('admin-summary').hidden = false;
+    // 管理者自身は行動記録を入力しないので選択肢に含めない
+    const users = (await api('GET', '/api/users')).filter(u => !u.is_admin);
+    const sel = $('target-user');
+    sel.innerHTML = '';
+    users.forEach(u => {
+      const o = document.createElement('option');
+      o.value = u.user_id;
+      o.textContent = `${u.name}（${u.user_id}）`;
+      sel.appendChild(o);
+    });
+    targetUser = users[0]?.user_id || '';
+    sel.value = targetUser;
+    sel.disabled = !users.length;
+    sel.onchange = () => { targetUser = sel.value; reload(); };
+  }
+  // ---- Gemini API キー（ユーザーごと） ----
+  $('gemini-btn').onclick = () => {
+    $('gemini-form').reset();
+    $('gemini-error').textContent = '';
+    $('gemini-status').textContent = summarizeEnabled ? `設定済み（…${geminiKeyHint}）` : '未設定';
+    $('gemini-delete').hidden = !summarizeEnabled;
+    $('gemini-dialog').showModal();
+  };
+  $('gemini-cancel').onclick = () => $('gemini-dialog').close();
+  async function saveGeminiKey(apiKey) {
+    try {
+      const r = await api('PUT', '/api/me/gemini-key', { api_key: apiKey });
+      summarizeEnabled = r.gemini_key_set;
+      geminiKeyHint = r.gemini_key_hint;
+      $('gemini-dialog').close();
+      render();   // 感想欄のボタン（AI要約 / Geminiで要約）を切り替える
+    } catch (err) {
+      $('gemini-error').textContent = err.message;
+    }
+  }
+  $('gemini-form').onsubmit = (ev) => {
+    ev.preventDefault();
+    const k = $('gemini-key').value.trim();
+    if (!k) { $('gemini-error').textContent = 'API キーを入力してください'; return; }
+    saveGeminiKey(k);
+  };
+  $('gemini-delete').onclick = () => { if (confirm('Gemini の API キーを削除しますか？')) saveGeminiKey(''); };
+
   const openPwDialog = () => { $('pw-form').reset(); $('pw-error').textContent = ''; $('pw-dialog').showModal(); };
   $('pw-btn').onclick = openPwDialog;
   $('notice-pw-btn').onclick = openPwDialog;
@@ -1016,6 +1250,7 @@
   (async () => {
     try { await loadMe(); } catch (err) { showError(err); return; }
     await reload();
+    if (isAdmin) return;
     // 睡眠中なら「起床」、それ以外は「その他」を初期選択
     if (isSleepingNow()) { pattern = 'sleep'; resetForm(); }
     focusFirst();

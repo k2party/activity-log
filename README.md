@@ -14,9 +14,14 @@
   | 外出 (`out`) | 開始〜終了・行先 |
   | その他 (`other`) | 開始〜終了・内容 |
 - **1日の感想** — 日付ごとに1件（1000文字まで）
+- **感想の AI 要約** — 入力中の感想（50文字以上）を Google Gemini で要約して入力欄に反映（保存前に確認・「元に戻す」可能）
+  - API キー未設定のユーザー：「Geminiで要約」で要約の依頼文をコピーして Gemini（gemini.google.com。ログインしないゲストモードでも可）を開く。Gemini に貼り付けて送信し、返ってきた要約をコピーして「要約を貼り付け」で反映する。感想はユーザーのブラウザから Gemini に送られ、サーバーは関与しない
+  - API キーを設定したユーザー：「AI要約」でサーバーがそのユーザーのキーで Gemini API を呼び出し、要約を直接反映する
+  - API キーは各ユーザーが画面上部の「Gemini設定」で登録・削除する（[Google AI Studio](https://aistudio.google.com/apikey) で取得）。キーは本人の要約にのみ使われ、画面・API には末尾4文字以外返さない
 - **入力候補** — 最近使ったメモ・行先を候補として表示
 - **週間帳票 PDF** — 指定期間を含む月〜日を1ページ（A4横）として出力
-- **ログイン / ユーザー管理** — 各ユーザーは自分の記録のみ閲覧・編集可能。管理者（`admin`）はユーザーの追加・変更・削除が可能
+- **ログイン / ユーザー管理** — 各ユーザーは自分の記録のみ閲覧・編集可能。管理者（`admin`）はユーザーの追加・変更・削除が可能（ユーザ一覧では各ユーザーの Gemini API キーの設定有無を確認でき、設定ありの場合は `...` ＋末尾4文字を表示する。キーの登録・変更は本人のみ）
+- **管理者の帳票出力** — 管理者でログインすると行動記録の入力欄・一覧は表示せず、任意のユーザーを選んで指定期間の PDF 帳票・CSV を出力できる
 
 ## 必要環境
 
@@ -43,6 +48,15 @@ DB は既定で `data/activity_log.db` に作成されます（`data/` の中身
 | `--db` | `DB_PATH` | `data/activity_log.db` | SQLite DB ファイル（無ければ作成） |
 | — | `TRUST_PROXY=1` | 無効 | リバースプロキシ配下で `X-Forwarded-For` / `X-Forwarded-Proto` を信頼する |
 | — | `COOKIE_SECURE=1` | 無効 | ログイン Cookie に常に `Secure` 属性を付ける（HTTPS 運用時） |
+| — | `GEMINI_KEY_SECRET` | 未設定 | 各ユーザーの Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。未設定のときは API キーを登録できない（「Geminiで要約」など他の機能は使える） |
+| — | `GEMINI_MODEL` | `gemini-flash-latest` | 要約に使う Gemini のモデル（混み合って 503 等やタイムアウトになったときは `gemini-flash-lite-latest` で1回だけ再試行する） |
+
+> AI 要約を使うと、感想の本文が Google（Gemini）に送信されます。要約は1ユーザーあたり10分間に20回まで。
+>
+> 各ユーザーの Gemini API キーは、`GEMINI_KEY_SECRET` から導出した鍵で**暗号化して** DB（`users.gemini_api_key`）に保存します（HMAC-SHA256 による CTR 方式＋改ざん検知。Python 標準ライブラリのみで実装。`app/secretbox.py`）。DB ファイルやそのバックアップだけが漏れてもキーは読めません。
+> - 秘密鍵は DB とは別に管理してください（DB と同じボリュームやバックアップに入れない）。生成例: `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
+> - 秘密鍵を変更・紛失すると、登録済みのキーは復号できなくなり「未設定」扱いになります（各ユーザーが再登録すれば使えます）。
+> - 旧バージョン（平文で保存していた DB バージョン6）から更新するときは、平文のキーが残っていれば起動時に暗号化して平文の列を削除します。このとき `GEMINI_KEY_SECRET` が未設定だと起動を中止します。
 
 ### Docker Compose で起動
 
@@ -109,15 +123,17 @@ DB 作成時に管理者ユーザーが自動で作成されます。
 | POST | `/api/login` / `/api/logout` | ログイン / ログアウト |
 | GET | `/api/me` | ログイン中のユーザー情報 |
 | PUT | `/api/me/password` | 自分のパスワード変更 |
-| GET | `/api/activities?from=&to=` | 期間内の行動記録 |
+| PUT | `/api/me/gemini-key` | 自分の Gemini API キーの登録 `{"api_key": ...}`（空なら削除） |
+| GET | `/api/activities?from=&to=` | 期間内の行動記録（管理者は `&user_id=` で他のユーザーを指定可） |
 | POST | `/api/activities` | 行動記録の追加 |
 | PUT / DELETE | `/api/activities/{id}` | 行動記録の更新 / 削除 |
 | GET | `/api/activities/open-sleep` | 起床未入力の最新の睡眠 |
 | GET | `/api/history?category=meal\|out\|other` | 入力候補（最近のメモ） |
-| GET | `/api/daily-notes?from=&to=` | 期間内の感想 |
+| GET | `/api/daily-notes?from=&to=` | 期間内の感想（管理者は `&user_id=` で他のユーザーを指定可） |
 | PUT | `/api/daily-notes/{YYYY-MM-DD}` | 感想の保存（空なら削除） |
-| GET | `/api/report.pdf?from=&to=` | 週間帳票 PDF |
-| GET / POST | `/api/users` | ユーザー一覧 / 追加（管理者） |
+| POST | `/api/summarize` | 文章 `{"text": ...}` を本人の API キーで Gemini に要約させ `{"summary": ...}` を返す（保存はしない。キー未登録時は 400） |
+| GET | `/api/report.pdf?from=&to=` | 週間帳票 PDF（管理者は `&user_id=` で他のユーザーを指定可） |
+| GET / POST | `/api/users` | ユーザー一覧 / 追加（管理者）。一覧には Gemini API キーの設定状態 `gemini_key`（`set` 設定済み / `unset` 未設定 / `nosecret` サーバーの秘密鍵が未設定で使用不可 / `invalid` 復号できず要再登録）と、設定済みの場合はキーの末尾4文字 `gemini_key_hint` を含む（キー本体は返さない） |
 | PUT / DELETE | `/api/users/{user_id}` | ユーザー更新 / 削除（管理者。`admin` は削除不可） |
 
 ## セキュリティ
@@ -141,6 +157,7 @@ Acrobat / Chrome / Edge / macOS プレビューなど、閲覧側のフォント
 | PDF 帳票 | `行動記録_開始日_終了日_出力日時.pdf`（例：`行動記録_2026-11-09_2026-11-15_20261115-093824.pdf`） |
 | CSV | `行動記録_開始日_終了日_出力日時.csv`（開始日と終了日が同じ日なら `行動記録_日付_出力日時.csv`） |
 
+- 管理者が他のユーザーを出力した場合は、`行動記録_ユーザID_開始日_終了日_出力日時.pdf` のように「行動記録_」の後にユーザIDが入ります。
 - 開始日・終了日は `YYYY-MM-DD` 形式で、画面で指定した期間がそのまま入ります（PDF の各ページは、その期間を含む月〜日の週です）。
 - 出力日時は `YYYYMMDD-HHMMSS` 形式の日本時間です（PDF はサーバー、CSV は端末の時計を基準にします）。Android などでは同じ名前だと以前ダウンロードした古いファイルが開かれることがあるため、出力ごとに別の名前にしています。
 - 日本語のファイル名を扱えない環境では、PDF は `activity_log_開始日_終了日_出力日時.pdf` になります。

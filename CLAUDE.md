@@ -25,6 +25,8 @@ podman build -t localhost/activity-log-app:latest .   # Podman Quadlet 用イメ
 
 - `app/server.py` — `http.server` の `BaseHTTPRequestHandler` ベース。`do_GET`/`do_POST`/`do_PUT`/`do_DELETE` 内の routes dict・正規表現でルーティングし、`handle_errors` で `ValidationError`/`HttpError` を JSON エラーに変換する。DB スキーマ定義とマイグレーションもここにある。
 - `app/auth.py` — PBKDF2 パスワードハッシュ、セッショントークン（DB には SHA-256 のみ保存）、ログイン試行制限。
+- `app/summarize.py` — Gemini API で 1日の感想を要約（過負荷時は軽量モデルで1回再試行）。
+- `app/secretbox.py` — DB に保存する Gemini API キーの可逆暗号化（標準ライブラリに AES 等が無いため HMAC-SHA256 で CTR＋改ざん検知を組む）。秘密鍵は環境変数 `GEMINI_KEY_SECRET`、関連データはユーザID。
 - `app/pdf_report.py` — PDF を自前で組み立てる（ライブラリ不使用）。日本語は非埋め込みの標準フォント（HeiseiKakuGo-W5）を参照。1週（月〜日）＝A4横1ページ。
 - `app/index.html` — 行動記録画面。JS はインライン。CSV 出力はクライアント側で生成する。
 - `login.html` / `users.html` — ログイン、ユーザ管理（管理者のみ）。
@@ -37,11 +39,11 @@ podman build -t localhost/activity-log-app:latest .   # Podman Quadlet 用イメ
 
 ### DB スキーマとマイグレーション
 
-`PRAGMA user_version` でバージョン管理（現在 `SCHEMA_VERSION = 5`）。起動時の `init_db()` が自動移行する。
+`PRAGMA user_version` でバージョン管理（現在 `SCHEMA_VERSION = 7`）。起動時の `init_db()` が自動移行する。
 スキーマを変更するときは `SCHEMA_VERSION` を上げ、`migrate_X_to_Y_script()` を追加して `init_db()` に段階的な移行を足す。CHECK 制約の変更などはテーブルを作り直して（`activities_new` → RENAME）データを移す方式を取っている。`create_script()` は常に最新スキーマを作る。
 
 ### デプロイ上の注意
 
-- `Dockerfile` は `app/` 内のファイルを**個別に列挙して COPY** している。`app/` にファイルを追加したら Dockerfile も更新すること。
+- `Dockerfile` は `app/` 内のファイルを**個別に列挙して COPY** しており、`.dockerignore` もホワイトリスト方式。`app/` にファイルを追加したら両方を更新すること。
 - コンテナは `TRUST_PROXY=1` でリバースプロキシ配下を想定。Podman Quadlet 定義は `podman/`（名前は `diary`）。
 - README.md にユーザー向けの機能・API 一覧があるので、機能や API を変更したら README も更新する。

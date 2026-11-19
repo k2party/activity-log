@@ -11,6 +11,11 @@ Pod=diary.pod
 Volume=diary-db_data.volume:/data
 # 非rootユーザー（Dockerfile の USER app, UID 10001）で実行
 User=10001
+# 感想の AI 要約に使う Gemini のモデルを変える場合（API キーは各ユーザーが画面で登録する）
+#Environment=GEMINI_MODEL=gemini-flash-latest
+# Gemini API キーを DB に暗号化して保存するための秘密鍵（32文字以上）。secret を作成してから次の Secret= 行を有効にする:
+#   python3 -c "import secrets; print(secrets.token_urlsafe(32), end='')" | podman secret create diary-gemini-key-secret -
+#Secret=diary-gemini-key-secret,type=env,target=GEMINI_KEY_SECRET
 # podman build（OCI形式）では Dockerfile の HEALTHCHECK が引き継がれないため、ここで定義する
 HealthCmd=python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2).status == 200 else 1)"
 HealthInterval=30s

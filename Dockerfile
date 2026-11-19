@@ -12,7 +12,7 @@ RUN useradd --system --uid 10001 --no-create-home app \
  && mkdir -p /data && chown app:app /data
 
 WORKDIR /app
-COPY app/server.py app/auth.py app/pdf_report.py app/index.html app/login.html app/users.html ./
+COPY app/server.py app/auth.py app/pdf_report.py app/summarize.py app/secretbox.py app/index.html app/login.html app/users.html ./
 
 USER app
 VOLUME ["/data"]
